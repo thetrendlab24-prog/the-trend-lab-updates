@@ -14,7 +14,7 @@ android {
             val encodedStore = System.getenv("ANDROID_KEYSTORE_BASE64")
             if (!encodedStore.isNullOrBlank()) {
                 val keyFile = file("$rootDir/thetrendlab-release.jks")
-                keyFile.writeBytes(Base64.getDecoder().decode(encodedStore))
+                keyFile.writeBytes(Base64.getDecoder().decode(encodedStore.replace("\\s".toRegex(), "")))
                 storeFile = keyFile
             }
             storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
