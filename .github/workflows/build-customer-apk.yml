@@ -7,7 +7,7 @@ on:
       - fresh-customer-app-cloud-build
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -28,12 +28,27 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
-      - name: Upload APK
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: The-Trend-Lab-Customer-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: The-Trend-Lab-Customer-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+      - name: Publish update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: customer-v1.0.1
+          name: The Trend Lab Customer App v1.0.1
+          body: |
+            Mandatory in-app update support.
+            Includes permanent release signing and Android system-bar spacing fixes.
+          files: app/build/outputs/apk/release/app-release.apk
+          make_latest: true
