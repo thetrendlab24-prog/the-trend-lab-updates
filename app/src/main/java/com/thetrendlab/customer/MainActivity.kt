@@ -1,20 +1,49 @@
 package com.thetrendlab.customer
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.view.WindowInsets
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private var downloadId: Long = -1L
+    private var pendingInstallUri: Uri? = null
+    private var updateDialogVisible = false
+
+    private val downloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+            if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) != downloadId) return
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            pendingInstallUri = manager.getUriForDownloadedFile(downloadId)
+            if (pendingInstallUri == null) {
+                Toast.makeText(this@MainActivity, "Update download failed. Please try again.", Toast.LENGTH_LONG).show()
+                return
+            }
+            installDownloadedUpdate()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,10 +88,102 @@ class MainActivity : Activity() {
         setContentView(webView)
         webView.requestApplyInsets()
 
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(downloadReceiver, filter)
+        }
+
         if (savedInstanceState == null) {
             webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html")
         } else {
             webView.restoreState(savedInstanceState)
+        }
+        checkForMandatoryUpdate()
+    }
+
+    private fun checkForMandatoryUpdate() {
+        Thread {
+            try {
+                val connection = (URL("https://raw.githubusercontent.com/thetrendlab24-prog/the-trend-lab-updates/fresh-customer-app-cloud-build/app-update.json").openConnection() as HttpURLConnection)
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                connection.requestMethod = "GET"
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val update = JSONObject(body)
+                val latestCode = update.optInt("versionCode", 0)
+                val currentCode = packageManager.getPackageInfo(packageName, 0).versionCode
+                if (latestCode > currentCode) {
+                    val name = update.optString("versionName", "New version")
+                    val notes = update.optString("releaseNotes", "Important improvements and fixes.")
+                    val apkUrl = update.optString("apkUrl")
+                    val forced = update.optBoolean("forceUpdate", false)
+                    runOnUiThread { showUpdateDialog(name, notes, apkUrl, forced) }
+                }
+            } catch (_: Exception) {
+                // Keep the storefront available if the update server cannot be reached.
+            }
+        }.start()
+    }
+
+    private fun showUpdateDialog(version: String, notes: String, apkUrl: String, forced: Boolean) {
+        if (isFinishing || updateDialogVisible || apkUrl.isBlank()) return
+        updateDialogVisible = true
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Update required — The Trend Lab")
+            .setMessage("Version $version is available.\n\n$notes\n\nPlease update to continue using the app.")
+            .setPositiveButton("Update Now") { _, _ -> startUpdateDownload(apkUrl) }
+            .setCancelable(!forced)
+            .create()
+        if (!forced) dialog.setButton(AlertDialog.BUTTON_NEGATIVE, "Later") { _, _ -> updateDialogVisible = false }
+        dialog.setOnCancelListener { updateDialogVisible = false }
+        dialog.setOnDismissListener { if (!forced) updateDialogVisible = false }
+        dialog.show()
+        if (forced) dialog.setCanceledOnTouchOutside(false)
+    }
+
+    private fun startUpdateDownload(apkUrl: String) {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            startActivity(intent)
+            Toast.makeText(this, "Allow app installs, then reopen The Trend Lab to update.", Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            val request = DownloadManager.Request(Uri.parse(apkUrl))
+                .setTitle("The Trend Lab update")
+                .setDescription("Downloading the latest app version")
+                .setMimeType("application/vnd.android.package-archive")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "TheTrendLab-update.apk")
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            downloadId = manager.enqueue(request)
+            Toast.makeText(this, "Update downloading…", Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Could not start update download. Please try again.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun installDownloadedUpdate() {
+        val uri = pendingInstallUri ?: return
+        try {
+            val install = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(install)
+        } catch (_: Exception) {
+            Toast.makeText(this, "Open the downloaded update from your notification.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (pendingInstallUri != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
+            installDownloadedUpdate()
         }
     }
 
@@ -81,6 +202,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        try { unregisterReceiver(downloadReceiver) } catch (_: Exception) { }
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
