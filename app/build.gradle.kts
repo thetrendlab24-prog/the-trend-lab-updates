@@ -3,9 +3,25 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+import java.util.Base64
+
 android {
     namespace = "com.thetrendlab.customer"
     compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            val encodedStore = System.getenv("ANDROID_KEYSTORE_BASE64")
+            if (!encodedStore.isNullOrBlank()) {
+                val keyFile = file("$rootDir/thetrendlab-release.jks")
+                keyFile.writeBytes(Base64.getDecoder().decode(encodedStore))
+                storeFile = keyFile
+            }
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,7 +36,14 @@ android {
         applicationId = "com.thetrendlab.customer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
     }
 }
