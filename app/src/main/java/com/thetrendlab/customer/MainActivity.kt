@@ -175,6 +175,7 @@ class MainActivity : Activity() {
             webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html?app_refresh=2100")
         } else {
             webView.restoreState(savedInstanceState)
+            webView.post { webView.reload() }
         }
         checkForMandatoryUpdate(false)
     }
@@ -402,7 +403,7 @@ class MainActivity : Activity() {
             .create()
         if (!forced) dialog.setButton(AlertDialog.BUTTON_NEGATIVE, "Later") { _, _ -> updateDialogVisible = false }
         dialog.setOnCancelListener { updateDialogVisible = false }
-        dialog.setOnDismissListener { if (!forced) updateDialogVisible = false }
+        dialog.setOnDismissListener { updateDialogVisible = false }
         dialog.show()
         if (forced) dialog.setCanceledOnTouchOutside(false)
     }
@@ -463,11 +464,12 @@ class MainActivity : Activity() {
             // Launch Android's package installer automatically as soon as the verified APK download completes.
             // Android still requires the user to confirm installation for ordinary sideloaded apps.
             val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                data = uri
-                type = "application/vnd.android.package-archive"
+                setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
+            // Clear before launch so returning from the installer cannot trigger an endless relaunch loop.
+            pendingInstallUri = null
             startActivityForResult(install, 901)
         } catch (_: Exception) {
             try {
@@ -500,8 +502,6 @@ class MainActivity : Activity() {
                 pendingDownloadUrl = null
                 enqueueUpdateDownload(url, pendingExpectedSha256 ?: "")
                 pendingExpectedSha256 = null
-            } else if (pendingInstallUri != null) {
-                installDownloadedUpdate()
             }
         }
     }
