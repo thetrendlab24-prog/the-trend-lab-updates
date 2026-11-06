@@ -16,6 +16,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.view.WindowInsets
 import android.view.Gravity
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
