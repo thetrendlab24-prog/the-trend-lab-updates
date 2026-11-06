@@ -52,6 +52,8 @@ class MainActivity : Activity() {
     private var offlineOverlay: View? = null
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var refreshOnNextResume = false
+    private var doubleBackToExitPressedOnce = false
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -470,7 +472,16 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::webView.isInitialized) (webView.parent as? FrameLayout)?.let { refreshConnectivity(it) }
+        if (::webView.isInitialized) {
+            (webView.parent as? FrameLayout)?.let { refreshConnectivity(it) }
+            if (refreshOnNextResume) {
+                refreshOnNextResume = false
+                val currentUrl = webView.url.orEmpty()
+                if (currentUrl.startsWith("https://the-trend-lab.thetrendlab24.workers.dev/") && hasValidatedInternet()) {
+                    webView.reload()
+                }
+            }
+        }
         if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
             val url = pendingDownloadUrl
             if (!url.isNullOrBlank()) {
@@ -483,6 +494,11 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onPause() {
+        refreshOnNextResume = true
+        super.onPause()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         webView.saveState(outState)
         super.onSaveInstanceState(outState)
@@ -493,7 +509,15 @@ class MainActivity : Activity() {
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
         } else {
-            super.onBackPressed()
+            if (doubleBackToExitPressedOnce) {
+                finish()
+                return
+            }
+            doubleBackToExitPressedOnce = true
+            Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
+            Handler(Looper.getMainLooper()).postDelayed({
+                doubleBackToExitPressedOnce = false
+            }, 2000)
         }
     }
 
