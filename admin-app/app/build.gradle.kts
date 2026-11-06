@@ -6,11 +6,11 @@ android {
     namespace = "com.thetrendlab.admin"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.thetrendlab.admin"
+        applicationId = "com.thetrendlab.adminapp"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
