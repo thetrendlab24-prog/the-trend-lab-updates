@@ -67,6 +67,14 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon assembleRelease
 
+      - name: Calculate APK SHA-256
+        id: apk_hash
+        shell: bash
+        run: |
+          APK_SHA256=$(sha256sum app/build/outputs/apk/release/app-release.apk | awk '{print $1}')
+          test -n "$APK_SHA256"
+          echo "apk_sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
+
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -91,6 +99,7 @@ jobs:
         env:
           APP_VERSION_CODE: ${{ steps.app_version.outputs.version_code }}
           APP_VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
+          APP_APK_SHA256: ${{ steps.apk_hash.outputs.apk_sha256 }}
         with:
           script: |
             const path = "app-update.json";
@@ -102,6 +111,7 @@ jobs:
               versionCode: Number(process.env.APP_VERSION_CODE),
               versionName: process.env.APP_VERSION_NAME,
               apkUrl: "https://github.com/" + owner + "/" + repo + "/releases/download/customer-v" + process.env.APP_VERSION_NAME + "/app-release.apk",
+              apkSha256: process.env.APP_APK_SHA256,
               releaseNotes: "The Trend Lab Customer App v" + process.env.APP_VERSION_NAME + " is available.",
               forceUpdate: false
             };
