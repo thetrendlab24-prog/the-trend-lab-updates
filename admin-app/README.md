@@ -6,3 +6,5 @@
 - Release APK is built unsigned by GitHub Actions. Sign it with a dedicated key before distribution.
 
 Build workflow refreshed with corrected icon asset.
+
+Duplicate launcher resource removed; rebuild requested.
