@@ -14,6 +14,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.view.WindowInsets
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -29,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var downloadId: Long = -1L
     private var pendingInstallUri: Uri? = null
+    private var pendingDownloadUrl: String? = null
     private var updateDialogVisible = false
 
     private val downloadReceiver = object : BroadcastReceiver() {
@@ -84,6 +86,7 @@ class MainActivity : Activity() {
             setAcceptThirdPartyCookies(webView, true)
         }
         webView.webViewClient = WebViewClient()
+        webView.addJavascriptInterface(UpdateBridge(), "Android")
         webView.webChromeClient = WebChromeClient()
         setContentView(webView)
         webView.requestApplyInsets()
@@ -101,30 +104,50 @@ class MainActivity : Activity() {
         } else {
             webView.restoreState(savedInstanceState)
         }
-        checkForMandatoryUpdate()
+        checkForMandatoryUpdate(false)
     }
 
-    private fun checkForMandatoryUpdate() {
+    private inner class UpdateBridge {
+        @JavascriptInterface
+        fun checkForUpdate() {
+            checkForMandatoryUpdate(true)
+        }
+    }
+
+    private fun checkForMandatoryUpdate(showLatestMessage: Boolean) {
         Thread {
+            var connection: HttpURLConnection? = null
             try {
-                val connection = (URL("https://raw.githubusercontent.com/thetrendlab24-prog/the-trend-lab-updates/fresh-customer-app-cloud-build/app-update.json").openConnection() as HttpURLConnection)
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
+                connection = (URL("https://raw.githubusercontent.com/thetrendlab24-prog/the-trend-lab-updates/fresh-customer-app-cloud-build/app-update.json").openConnection() as HttpURLConnection)
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
                 connection.requestMethod = "GET"
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("Cache-Control", "no-cache")
+                val code = connection.responseCode
+                if (code !in 200..299) throw IllegalStateException("Update server returned HTTP $code")
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
-                connection.disconnect()
                 val update = JSONObject(body)
                 val latestCode = update.optInt("versionCode", 0)
-                val currentCode = packageManager.getPackageInfo(packageName, 0).versionCode
+                val currentInfo = packageManager.getPackageInfo(packageName, 0)
+                val currentCode = if (Build.VERSION.SDK_INT >= 28) currentInfo.longVersionCode.toInt() else @Suppress("DEPRECATION") currentInfo.versionCode
+                if (latestCode <= 0) throw IllegalStateException("Invalid update version information")
                 if (latestCode > currentCode) {
                     val name = update.optString("versionName", "New version")
                     val notes = update.optString("releaseNotes", "Important improvements and fixes.")
                     val apkUrl = update.optString("apkUrl")
                     val forced = update.optBoolean("forceUpdate", false)
                     runOnUiThread { showUpdateDialog(name, notes, apkUrl, forced) }
+                } else if (showLatestMessage) {
+                    runOnUiThread { Toast.makeText(this, "You're using the latest version.", Toast.LENGTH_LONG).show() }
                 }
-            } catch (_: Exception) {
-                // Keep the storefront available if the update server cannot be reached.
+            } catch (e: Exception) {
+                if (showLatestMessage) {
+                    val message = e.message ?: "Please check your internet connection."
+                    runOnUiThread { Toast.makeText(this, "Update check failed: $message", Toast.LENGTH_LONG).show() }
+                }
+            } finally {
+                connection?.disconnect()
             }
         }.start()
     }
@@ -146,12 +169,22 @@ class MainActivity : Activity() {
     }
 
     private fun startUpdateDownload(apkUrl: String) {
-        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
-            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-            startActivity(intent)
-            Toast.makeText(this, "Allow app installs, then reopen The Trend Lab to update.", Toast.LENGTH_LONG).show()
+        val parsed = try { Uri.parse(apkUrl) } catch (_: Exception) { null }
+        if (parsed == null || parsed.scheme != "https" || parsed.host !in listOf("github.com", "objects.githubusercontent.com")) {
+            Toast.makeText(this, "The update download link is invalid.", Toast.LENGTH_LONG).show()
             return
         }
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            pendingDownloadUrl = apkUrl
+            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            startActivity(intent)
+            Toast.makeText(this, "Allow installs from this app, then return here to continue.", Toast.LENGTH_LONG).show()
+            return
+        }
+        enqueueUpdateDownload(apkUrl)
+    }
+
+    private fun enqueueUpdateDownload(apkUrl: String) {
         try {
             val request = DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle("The Trend Lab update")
@@ -161,7 +194,7 @@ class MainActivity : Activity() {
                 .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "TheTrendLab-update.apk")
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             downloadId = manager.enqueue(request)
-            Toast.makeText(this, "Update downloading…", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Update downloading. Installer will open when complete.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
             Toast.makeText(this, "Could not start update download. Please try again.", Toast.LENGTH_LONG).show()
         }
@@ -182,8 +215,14 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (pendingInstallUri != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
-            installDownloadedUpdate()
+        if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
+            val url = pendingDownloadUrl
+            if (!url.isNullOrBlank()) {
+                pendingDownloadUrl = null
+                enqueueUpdateDownload(url)
+            } else if (pendingInstallUri != null) {
+                installDownloadedUpdate()
+            }
         }
     }
 
