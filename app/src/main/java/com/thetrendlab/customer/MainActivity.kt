@@ -116,6 +116,33 @@ class MainActivity : Activity() {
             setAcceptThirdPartyCookies(webView, false)
         }
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // APK-only: hide header shortcuts duplicated by the persistent bottom navigation.
+                // This is injected into this WebView only; the public website remains unchanged.
+                val apkHeaderCleanup = """
+                    (function() {
+                      if (window.innerWidth > 768) return;
+                      if (document.getElementById('ttl-apk-header-shortcuts-style')) return;
+                      var style = document.createElement('style');
+                      style.id = 'ttl-apk-header-shortcuts-style';
+                      style.textContent = '.header-actions,.header-icons,.header-tools,.top-header-actions,.mobile-header-actions,.header-action-buttons,.header-right-actions{display:none!important}';
+                      document.head.appendChild(style);
+                      var headers = Array.from(document.querySelectorAll('header,.header,.site-header,.app-header,.mobile-header,.topbar'));
+                      headers.forEach(function(header) {
+                        header.querySelectorAll('button,a,[role="button"]').forEach(function(el) {
+                          var label = ((el.getAttribute('aria-label') || '') + ' ' +
+                            (el.getAttribute('title') || '') + ' ' +
+                            (el.getAttribute('data-action') || '') + ' ' +
+                            (el.innerText || '')).toLowerCase();
+                          if (/wishlist|cart|account|profile/.test(label)) el.style.setProperty('display','none','important');
+                        });
+                      });
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(apkHeaderCleanup, null)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 val uri = try { Uri.parse(url ?: return true) } catch (_: Exception) { return true }
                 return !(uri.scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev")
