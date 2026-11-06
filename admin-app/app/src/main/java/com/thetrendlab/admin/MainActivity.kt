@@ -24,11 +24,15 @@ class MainActivity : Activity() {
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, false) }
         web.webChromeClient = WebChromeClient()
         web.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
-                route(request?.url ?: return true)
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val uri = request?.url ?: return true
+                return route(uri)
+            }
             @Suppress("DEPRECATION")
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
-                route(Uri.parse(url ?: return true))
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                val value = url ?: return true
+                return route(Uri.parse(value))
+            }
         }
         setContentView(web)
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(adminUrl)
