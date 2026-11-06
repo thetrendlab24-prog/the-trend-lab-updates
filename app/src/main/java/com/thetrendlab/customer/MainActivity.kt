@@ -183,15 +183,43 @@ class MainActivity : Activity() {
 
     private fun routeNavigation(uri: Uri): Boolean {
         val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return true
-        if (scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev") return false
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+        if (scheme == "https" && host == "the-trend-lab.thetrendlab24.workers.dev") return false
+
+        // WhatsApp support links must be launched directly. resolveActivity() can return
+        // null on Android 11+ because of package visibility, even when a handler exists.
+        if (scheme == "https" && (host == "wa.me" || host == "api.whatsapp.com" || host == "www.whatsapp.com")) {
+            val packages = listOf("com.whatsapp", "com.whatsapp.w4b")
+            for (pkg in packages) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg))
+                    return true
+                } catch (_: android.content.ActivityNotFoundException) {
+                    // Try WhatsApp Business or the browser fallback.
+                } catch (_: Exception) {
+                    // Continue to the next supported handler.
+                }
+            }
+            return try {
+                startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW, uri), "Open WhatsApp support"))
+                true
+            } catch (_: Exception) {
+                Toast.makeText(this, "No browser or WhatsApp app is available. Please install WhatsApp or a browser.", Toast.LENGTH_LONG).show()
+                true
+            }
+        }
+
         return try {
             val intent = when (scheme) {
                 "http", "https", "tel", "mailto", "sms", "smsto", "upi", "market" -> Intent(Intent.ACTION_VIEW, uri)
                 "intent" -> Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                 else -> return true
             }
-            if (intent.resolveActivity(packageManager) != null) startActivity(intent)
-            else Toast.makeText(this, "No app is available to open this link.", Toast.LENGTH_SHORT).show()
+            // Do not gate launches on resolveActivity(): package visibility can hide valid handlers.
+            startActivity(intent)
+            true
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(this, "No compatible app is installed to open this link.", Toast.LENGTH_SHORT).show()
             true
         } catch (_: Exception) {
             Toast.makeText(this, "Unable to open this link.", Toast.LENGTH_SHORT).show()
