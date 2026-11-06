@@ -10,6 +10,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Build
 import android.os.Environment
@@ -46,6 +49,9 @@ class MainActivity : Activity() {
     private var pendingDownloadUrl: String? = null
     private var pendingExpectedSha256: String? = null
     private var updateDialogVisible = false
+    private var offlineOverlay: View? = null
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -125,6 +131,7 @@ class MainActivity : Activity() {
         setContentView(root)
         webView.requestApplyInsets()
         showBrandOpening(root)
+        setupConnectivityMonitor(root)
 
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -222,6 +229,88 @@ class MainActivity : Activity() {
                 root.removeView(splash)
             }.start()
         }, 1700)
+    }
+
+
+    private fun setupConnectivityMonitor(root: FrameLayout) {
+        connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { refreshConnectivity(root) }
+            override fun onLost(network: Network) { refreshConnectivity(root) }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { refreshConnectivity(root) }
+        }
+        networkCallback = callback
+        try { connectivityManager?.registerDefaultNetworkCallback(callback) } catch (_: Exception) { }
+        refreshConnectivity(root)
+    }
+
+    private fun hasValidatedInternet(): Boolean {
+        val cm = connectivityManager ?: return false
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun refreshConnectivity(root: FrameLayout) {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            if (hasValidatedInternet()) {
+                offlineOverlay?.let { root.removeView(it); offlineOverlay = null }
+            } else if (offlineOverlay == null) showOfflinePage(root)
+        }
+    }
+
+    private fun showOfflinePage(root: FrameLayout) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(30), dp(30), dp(30), dp(30))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(19, 12, 29), Color.rgb(54, 24, 61), Color.rgb(19, 12, 29)))
+        }
+        val mark = TextView(this).apply {
+            text = "TL"; textSize = 48f
+            typeface = Typeface.create("serif", Typeface.BOLD)
+            setTextColor(Color.rgb(224, 190, 105)); gravity = Gravity.CENTER
+        }
+        val title = TextView(this).apply {
+            text = "NO INTERNET CONNECTION"; textSize = 20f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(Color.rgb(239, 211, 145)); gravity = Gravity.CENTER
+            letterSpacing = 0.08f
+        }
+        val message = TextView(this).apply {
+            text = "Please check your Wi-Fi or mobile data connection and try again."
+            textSize = 14f; setTextColor(Color.rgb(224, 216, 230))
+            gravity = Gravity.CENTER; setPadding(0, dp(14), 0, dp(24))
+        }
+        val retry = TextView(this).apply {
+            text = "TRY AGAIN"; textSize = 14f; typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER; setTextColor(Color.rgb(29, 19, 34))
+            background = GradientDrawable().apply { setColor(Color.rgb(224, 190, 105)); cornerRadius = dp(8).toFloat() }
+            setPadding(dp(34), dp(14), dp(34), dp(14))
+            setOnClickListener {
+                if (hasValidatedInternet()) {
+                    root.removeView(panel); offlineOverlay = null; webView.reload()
+                } else Toast.makeText(this@MainActivity, "Still offline. Please connect to the internet.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val settings = TextView(this).apply {
+            text = "OPEN INTERNET SETTINGS"; textSize = 13f; gravity = Gravity.CENTER
+            setTextColor(Color.rgb(239, 211, 145)); setPadding(dp(20), dp(20), dp(20), dp(10))
+            setOnClickListener {
+                try { startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
+                catch (_: Exception) { startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }
+            }
+        }
+        panel.addView(mark)
+        panel.addView(title, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        panel.addView(message, LinearLayout.LayoutParams(-1, -2))
+        panel.addView(retry)
+        panel.addView(settings)
+        root.addView(panel, FrameLayout.LayoutParams(-1, -1))
+        offlineOverlay = panel
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -353,6 +442,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::webView.isInitialized) (webView.parent as? FrameLayout)?.let { refreshConnectivity(it) }
         if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
             val url = pendingDownloadUrl
             if (!url.isNullOrBlank()) {
@@ -381,6 +471,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         try { unregisterReceiver(downloadReceiver) } catch (_: Exception) { }
+        try { networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) } } catch (_: Exception) { }
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
