@@ -31,7 +31,7 @@ jobs:
           python -m pip install --quiet pillow
           python - <<'PY'
           from PIL import Image
-          im = Image.open('admin-app/app/src/main/res/drawable/ic_launcher.webp').convert('RGB')
+          im = Image.open('admin-app/app/src/main/res/drawable/admin_icon.jpg').convert('RGB')
           im.resize((512,512), Image.Resampling.LANCZOS).save('admin-app/app/src/main/res/drawable/ic_launcher.png', optimize=True)
           PY
       - name: Build Admin APK
