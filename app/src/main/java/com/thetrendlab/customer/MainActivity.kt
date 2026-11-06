@@ -236,7 +236,7 @@ class MainActivity : Activity() {
                     digest.update(buffer, 0, n)
                 }
             } ?: return false
-            digest.digest().joinToString("") { "%02x".format(it) }.equals(expected, true)
+            digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }.equals(expected, true)
         } catch (_: Exception) { false }
     }
 
