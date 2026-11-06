@@ -12,3 +12,5 @@ Duplicate launcher resource removed; rebuild requested.
 Kotlin navigation callback compilation fix applied.
 
 Launcher icon padding crop adjustment applied.
+
+Admin package ID changed to com.thetrendlab.adminapp (v1.0.1) to avoid conflict with previous installation.
