@@ -26,13 +26,41 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare app icon
+      - name: Prepare adaptive Admin app icon
         run: |
           python -m pip install --quiet pillow
           python - <<'PY'
           from PIL import Image
-          im = Image.open('admin-app/app/src/main/res/drawable/admin_icon.jpg').convert('RGB')
-          im.resize((512,512), Image.Resampling.LANCZOS).save('admin-app/app/src/main/res/drawable/ic_launcher.png', optimize=True)
+          from collections import deque
+          import numpy as np
+          src = Image.open('admin-app/app/src/main/res/drawable/admin_icon.jpg').convert('RGBA')
+          a = np.array(src)
+          rgb = a[:,:,:3]
+          mask = (rgb[:,:,0] > 238) & (rgb[:,:,1] > 238) & (rgb[:,:,2] > 238)
+          h,w = mask.shape
+          seen = np.zeros((h,w), dtype=bool)
+          q = deque()
+          for x in range(w):
+              if mask[0,x]: seen[0,x]=1; q.append((0,x))
+              if mask[h-1,x] and not seen[h-1,x]: seen[h-1,x]=1; q.append((h-1,x))
+          for y in range(h):
+              if mask[y,0] and not seen[y,0]: seen[y,0]=1; q.append((y,0))
+              if mask[y,w-1] and not seen[y,w-1]: seen[y,w-1]=1; q.append((y,w-1))
+          while q:
+              y,x=q.popleft()
+              for yy,xx in ((y-1,x),(y+1,x),(y,x-1),(y,x+1)):
+                  if 0<=yy<h and 0<=xx<w and mask[yy,xx] and not seen[yy,xx]:
+                      seen[yy,xx]=1; q.append((yy,xx))
+          a[seen,3]=0
+          im=Image.fromarray(a)
+          im=im.crop(im.getbbox())
+          fg=Image.new('RGBA',(432,432),(0,0,0,0))
+          im.thumbnail((408,408),Image.Resampling.LANCZOS)
+          fg.alpha_composite(im,((432-im.width)//2,(432-im.height)//2))
+          fg.save('admin-app/app/src/main/res/drawable/admin_foreground.png', optimize=True)
+          legacy=Image.new('RGBA',(512,512),(4,12,26,255))
+          legacy.alpha_composite(fg.resize((512,512),Image.Resampling.LANCZOS))
+          legacy.convert('RGB').save('admin-app/app/src/main/res/drawable/ic_launcher.png', optimize=True)
           PY
       - name: Build Admin APK
         run: gradle --no-daemon -p admin-app assembleDebug
