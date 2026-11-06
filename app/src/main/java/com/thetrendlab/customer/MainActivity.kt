@@ -1,6 +1,8 @@
 package com.thetrendlab.customer
 
 import android.app.Activity
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -13,6 +15,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import android.view.WindowInsets
+import android.view.Gravity
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -20,7 +23,14 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.WindowManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -60,6 +70,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
+        val root = FrameLayout(this)
         webView = WebView(this)
         webView.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -109,8 +120,10 @@ class MainActivity : Activity() {
         }
         webView.addJavascriptInterface(UpdateBridge(), "Android")
         webView.webChromeClient = WebChromeClient()
-        setContentView(webView)
+        root.addView(webView)
+        setContentView(root)
         webView.requestApplyInsets()
+        showBrandOpening(root)
 
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -127,6 +140,90 @@ class MainActivity : Activity() {
         }
         checkForMandatoryUpdate(false)
     }
+
+    private fun showBrandOpening(root: FrameLayout) {
+        val splash = FrameLayout(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(24, 10, 39), Color.rgb(65, 20, 75), Color.rgb(18, 12, 31))
+            )
+            elevation = 24f
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        val monogram = TextView(this).apply {
+            text = "TL"
+            textSize = 58f
+            typeface = Typeface.create("serif", Typeface.BOLD)
+            setTextColor(Color.rgb(224, 190, 105))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.04f
+        }
+        val title = TextView(this).apply {
+            text = "THE TREND LAB"
+            textSize = 25f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(Color.rgb(239, 211, 145))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.22f
+        }
+        val line = View(this).apply {
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(202, 163, 83))
+                cornerRadius = 3f
+            }
+        }
+        val tagline = TextView(this).apply {
+            text = "F A S H I O N   &   L I F E S T Y L E"
+            textSize = 10f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(Color.rgb(205, 190, 164))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.04f
+        }
+        content.addView(monogram, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+        content.addView(title, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) })
+        content.addView(line, LinearLayout.LayoutParams(dp(112), dp(2)).apply {
+            gravity = Gravity.CENTER
+            topMargin = dp(18)
+        })
+        content.addView(tagline, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(15) })
+        splash.addView(content, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        root.addView(splash, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        content.alpha = 0f
+        content.scaleX = 0.82f
+        content.scaleY = 0.82f
+        content.translationY = dp(18).toFloat()
+        AnimatorSet().apply {
+            playTogether(
+                ObjectAnimator.ofFloat(content, View.ALPHA, 0f, 1f),
+                ObjectAnimator.ofFloat(content, View.SCALE_X, 0.82f, 1f),
+                ObjectAnimator.ofFloat(content, View.SCALE_Y, 0.82f, 1f),
+                ObjectAnimator.ofFloat(content, View.TRANSLATION_Y, dp(18).toFloat(), 0f)
+            )
+            duration = 650
+            start()
+        }
+        Handler(Looper.getMainLooper()).postDelayed({
+            splash.animate().alpha(0f).setDuration(300).withEndAction {
+                root.removeView(splash)
+            }.start()
+        }, 1700)
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private inner class UpdateBridge {
         @JavascriptInterface
