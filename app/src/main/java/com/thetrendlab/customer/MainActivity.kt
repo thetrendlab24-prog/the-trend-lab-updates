@@ -460,13 +460,25 @@ class MainActivity : Activity() {
     private fun installDownloadedUpdate() {
         val uri = pendingInstallUri ?: return
         try {
-            val install = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            // Launch Android's package installer automatically as soon as the verified APK download completes.
+            // Android still requires the user to confirm installation for ordinary sideloaded apps.
+            val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = uri
+                type = "application/vnd.android.package-archive"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
-            startActivity(install)
+            startActivityForResult(install, 901)
         } catch (_: Exception) {
-            Toast.makeText(this, "Open the downloaded update from your notification.", Toast.LENGTH_LONG).show()
+            try {
+                val fallback = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(fallback)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Update downloaded and verified. Tap the update notification to install.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
