@@ -109,5 +109,5 @@ jobs:
               owner, repo, path, branch,
               message: "Publish in-app update metadata for v" + process.env.APP_VERSION_NAME,
               sha: current.data.sha,
-              content: Buffer.from(JSON.stringify(metadata, null, 2) + "\\n").toString("base64")
+              content: Buffer.from(JSON.stringify(metadata, null, 2) + "\n").toString("base64")
             });
