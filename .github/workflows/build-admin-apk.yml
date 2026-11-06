@@ -1,0 +1,45 @@
+name: Build The Trend Lab Admin APK
+on:
+  push:
+    branches: [admin-apk-build]
+    paths:
+      - 'admin-app/**'
+      - '.github/workflows/build-admin-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: admin-apk-build
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Prepare app icon
+        run: |
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image
+          im = Image.open('admin-app/app/src/main/res/drawable/ic_launcher.webp').convert('RGB')
+          im.resize((512,512), Image.Resampling.LANCZOS).save('admin-app/app/src/main/res/drawable/ic_launcher.png', optimize=True)
+          PY
+      - name: Build Admin APK
+        run: gradle --no-daemon -p admin-app assembleRelease
+      - name: Upload Admin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: The-Trend-Lab-Admin-v1.0.0-APK
+          path: admin-app/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
