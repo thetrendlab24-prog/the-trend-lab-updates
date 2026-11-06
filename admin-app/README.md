@@ -4,3 +4,5 @@
 - Admin URL: https://the-trend-lab.thetrendlab24.workers.dev/admin.html
 - Separate app identity from the customer app.
 - Release APK is built unsigned by GitHub Actions. Sign it with a dedicated key before distribution.
+
+Build workflow refreshed with corrected icon asset.
