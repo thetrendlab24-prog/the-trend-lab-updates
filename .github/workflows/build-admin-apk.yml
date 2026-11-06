@@ -36,7 +36,10 @@ jobs:
           src = Image.open('admin-app/app/src/main/res/drawable/admin_icon.jpg').convert('RGBA')
           a = np.array(src)
           rgb = a[:,:,:3]
-          mask = (rgb[:,:,0] > 238) & (rgb[:,:,1] > 238) & (rgb[:,:,2] > 238)
+          # Remove only edge-connected white and dark-navy tile padding.
+          white = (rgb[:,:,0] > 238) & (rgb[:,:,1] > 238) & (rgb[:,:,2] > 238)
+          navy = (rgb[:,:,0] < 58) & (rgb[:,:,1] < 72) & (rgb[:,:,2] < 105)
+          mask = white | navy
           h,w = mask.shape
           seen = np.zeros((h,w), dtype=bool)
           q = deque()
