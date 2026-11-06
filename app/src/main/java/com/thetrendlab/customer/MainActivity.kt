@@ -107,7 +107,7 @@ class MainActivity : Activity() {
             databaseEnabled = true
             loadsImagesAutomatically = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            cacheMode = WebSettings.LOAD_DEFAULT
+            cacheMode = WebSettings.LOAD_NO_CACHE
             javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(false)
         }
@@ -142,7 +142,8 @@ class MainActivity : Activity() {
         }
 
         if (savedInstanceState == null) {
-            webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html")
+            webView.clearCache(true)
+            webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html?app_refresh=2100")
         } else {
             webView.restoreState(savedInstanceState)
         }
