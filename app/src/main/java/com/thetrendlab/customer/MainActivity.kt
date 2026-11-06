@@ -25,12 +25,15 @@ import android.widget.Toast
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
+import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var downloadId: Long = -1L
     private var pendingInstallUri: Uri? = null
     private var pendingDownloadUrl: String? = null
+    private var pendingExpectedSha256: String? = null
     private var updateDialogVisible = false
 
     private val downloadReceiver = object : BroadcastReceiver() {
@@ -41,6 +44,12 @@ class MainActivity : Activity() {
             pendingInstallUri = manager.getUriForDownloadedFile(downloadId)
             if (pendingInstallUri == null) {
                 Toast.makeText(this@MainActivity, "Update download failed. Please try again.", Toast.LENGTH_LONG).show()
+                return
+            }
+            if (!verifyDownloadedApk(pendingInstallUri!!, pendingExpectedSha256)) {
+                manager.remove(downloadId)
+                pendingInstallUri = null
+                Toast.makeText(this@MainActivity, "Update file verification failed. APK blocked.", Toast.LENGTH_LONG).show()
                 return
             }
             installDownloadedUpdate()
@@ -73,6 +82,9 @@ class MainActivity : Activity() {
         }
         webView.settings.apply {
             javaScriptEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            if (Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             loadsImagesAutomatically = true
@@ -83,9 +95,18 @@ class MainActivity : Activity() {
         }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            setAcceptThirdPartyCookies(webView, true)
+            setAcceptThirdPartyCookies(webView, false)
         }
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                val uri = try { Uri.parse(url ?: return true) } catch (_: Exception) { return true }
+                return !(uri.scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev")
+            }
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                val uri = request?.url ?: return true
+                return !(uri.scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev")
+            }
+        }
         webView.addJavascriptInterface(UpdateBridge(), "Android")
         webView.webChromeClient = WebChromeClient()
         setContentView(webView)
@@ -136,8 +157,9 @@ class MainActivity : Activity() {
                     val name = update.optString("versionName", "New version")
                     val notes = update.optString("releaseNotes", "Important improvements and fixes.")
                     val apkUrl = update.optString("apkUrl")
+                    val apkSha256 = update.optString("apkSha256").lowercase(Locale.ROOT)
                     val forced = update.optBoolean("forceUpdate", false)
-                    runOnUiThread { showUpdateDialog(name, notes, apkUrl, forced) }
+                    runOnUiThread { showUpdateDialog(name, notes, apkUrl, apkSha256, forced) }
                 } else if (showLatestMessage) {
                     runOnUiThread { Toast.makeText(this, "You're using the latest version.", Toast.LENGTH_LONG).show() }
                 }
@@ -152,13 +174,13 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun showUpdateDialog(version: String, notes: String, apkUrl: String, forced: Boolean) {
+    private fun showUpdateDialog(version: String, notes: String, apkUrl: String, apkSha256: String, forced: Boolean) {
         if (isFinishing || updateDialogVisible || apkUrl.isBlank()) return
         updateDialogVisible = true
         val dialog = AlertDialog.Builder(this)
             .setTitle("Update required — The Trend Lab")
             .setMessage("Version $version is available.\n\n$notes\n\nPlease update to continue using the app.")
-            .setPositiveButton("Update Now") { _, _ -> startUpdateDownload(apkUrl) }
+            .setPositiveButton("Update Now") { _, _ -> startUpdateDownload(apkUrl, apkSha256) }
             .setCancelable(!forced)
             .create()
         if (!forced) dialog.setButton(AlertDialog.BUTTON_NEGATIVE, "Later") { _, _ -> updateDialogVisible = false }
@@ -168,23 +190,24 @@ class MainActivity : Activity() {
         if (forced) dialog.setCanceledOnTouchOutside(false)
     }
 
-    private fun startUpdateDownload(apkUrl: String) {
+    private fun startUpdateDownload(apkUrl: String, expectedSha256: String) {
         val parsed = try { Uri.parse(apkUrl) } catch (_: Exception) { null }
-        if (parsed == null || parsed.scheme != "https" || parsed.host !in listOf("github.com", "objects.githubusercontent.com")) {
+        if (parsed == null || parsed.scheme != "https" || parsed.host !in listOf("github.com", "objects.githubusercontent.com") || !expectedSha256.matches(Regex("^[a-f0-9]{64}$")) ) {
             Toast.makeText(this, "The update download link is invalid.", Toast.LENGTH_LONG).show()
             return
         }
         if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             pendingDownloadUrl = apkUrl
+            pendingExpectedSha256 = expectedSha256
             val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
             startActivity(intent)
             Toast.makeText(this, "Allow installs from this app, then return here to continue.", Toast.LENGTH_LONG).show()
             return
         }
-        enqueueUpdateDownload(apkUrl)
+        enqueueUpdateDownload(apkUrl, expectedSha256)
     }
 
-    private fun enqueueUpdateDownload(apkUrl: String) {
+    private fun enqueueUpdateDownload(apkUrl: String, expectedSha256: String) {
         try {
             val request = DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle("The Trend Lab update")
@@ -193,11 +216,28 @@ class MainActivity : Activity() {
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "TheTrendLab-update.apk")
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            pendingExpectedSha256 = expectedSha256
             downloadId = manager.enqueue(request)
             Toast.makeText(this, "Update downloading. Installer will open when complete.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
             Toast.makeText(this, "Could not start update download. Please try again.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun verifyDownloadedApk(uri: Uri, expected: String?): Boolean {
+        if (expected.isNullOrBlank() || !expected.matches(Regex("^[a-f0-9]{64}$"))) return false
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            contentResolver.openInputStream(uri)?.use { input ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    digest.update(buffer, 0, n)
+                }
+            } ?: return false
+            digest.digest().joinToString("") { "%02x".format(it) }.equals(expected, true)
+        } catch (_: Exception) { false }
     }
 
     private fun installDownloadedUpdate() {
@@ -219,7 +259,8 @@ class MainActivity : Activity() {
             val url = pendingDownloadUrl
             if (!url.isNullOrBlank()) {
                 pendingDownloadUrl = null
-                enqueueUpdateDownload(url)
+                enqueueUpdateDownload(url, pendingExpectedSha256 ?: "")
+                pendingExpectedSha256 = null
             } else if (pendingInstallUri != null) {
                 installDownloadedUpdate()
             }
