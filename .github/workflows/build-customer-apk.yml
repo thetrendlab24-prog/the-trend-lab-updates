@@ -11,7 +11,6 @@ on:
 permissions:
   contents: write
 
-# Serialize builds for this app so two commits cannot race to publish the same release.
 concurrency:
   group: customer-apk-${{ github.ref }}
   cancel-in-progress: true
@@ -22,27 +21,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Read app version
         id: app_version
         shell: bash
         run: |
-          VERSION_CODE=$(sed -n 's/.*versionCode = \\([0-9][0-9]*\\).*/\\1/p' app/build.gradle.kts | head -n 1)
-          VERSION_NAME=$(sed -n 's/.*versionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts | head -n 1)
+          VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -n 1)
+          VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
           test -n "$VERSION_CODE" && test -n "$VERSION_NAME"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
       - name: Prepare full-size launcher icon
         run: |
           python -m pip install --quiet pillow
@@ -50,11 +55,10 @@ jobs:
           from PIL import Image
           src = 'app/src/main/res/drawable/ic_launcher.webp'
           im = Image.open(src).convert('RGB')
-          # Scale the complete square artwork to fill the launcher canvas.
-          # thumbnail() only downsizes and left the 96px source tiny on 512px.
           im = im.resize((512, 512), Image.Resampling.LANCZOS)
           im.save('app/src/main/res/drawable/ic_launcher_fixed.png', optimize=True)
           PY
+
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -62,6 +66,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon assembleRelease
+
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -69,6 +74,7 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
@@ -79,6 +85,7 @@ jobs:
             Built automatically from the current app version.
           files: app/build/outputs/apk/release/app-release.apk
           make_latest: true
+
       - name: Publish in-app update metadata
         uses: actions/github-script@v7
         env:
