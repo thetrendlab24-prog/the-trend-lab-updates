@@ -28,13 +28,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare clean launcher icon
+      - name: Prepare solid black launcher icon
         run: |
           python -m pip install --quiet pillow numpy
           python - <<'PY'
           from PIL import Image
           from collections import deque
-          import numpy as np, os
+          import numpy as np
           src='app/src/main/res/drawable/ic_launcher.webp'
           im=Image.open(src).convert('RGBA')
           a=np.array(im)
@@ -57,15 +57,17 @@ jobs:
                   if 0<=yy<h and 0<=xx<w and mask[yy,xx] and not seen[yy,xx]:
                       seen[yy,xx]=1; q.append((yy,xx))
           a[seen,3]=0
-          cut=Image.fromarray(a,'RGBA')
-          bbox=cut.getchannel('A').getbbox()
-          cut=cut.crop(bbox)
+          artwork=Image.fromarray(a,'RGBA')
+          bbox=artwork.getchannel('A').getbbox()
+          artwork=artwork.crop(bbox)
           side=512
-          maxdim=int(side*.78)
-          cut.thumbnail((maxdim,maxdim),Image.Resampling.LANCZOS)
-          canvas=Image.new('RGBA',(side,side),(0,0,0,0))
-          canvas.alpha_composite(cut,((side-cut.width)//2,(side-cut.height)//2))
-          canvas.save('app/src/main/res/drawable/ic_launcher_fixed.png',optimize=True)
+          maxdim=int(side*.96)
+          artwork.thumbnail((maxdim,maxdim),Image.Resampling.LANCZOS)
+          canvas=Image.new('RGBA',(side,side),(5,3,8,255))
+          x=(side-artwork.width)//2
+          y=(side-artwork.height)//2
+          canvas.alpha_composite(artwork,(x,y))
+          canvas.convert('RGB').save('app/src/main/res/drawable/ic_launcher_fixed.png',optimize=True)
           PY
       - name: Build signed release APK
         env:
@@ -77,17 +79,17 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: The-Trend-Lab-Customer-v2.9.1-APK
+          name: The-Trend-Lab-Customer-v2.9.2-APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
       - name: Publish in-app update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: customer-v2.9.1
-          name: The Trend Lab Customer App v2.9.1
+          tag_name: customer-v2.9.2
+          name: The Trend Lab Customer App v2.9.2
           body: |
-            The Trend Lab Customer App v2.9.1.
-            Fixes launcher icon padding and includes the clean branded icon.
+            The Trend Lab Customer App v2.9.2.
+            Fixes launcher icon white tile by using an opaque black square app icon background.
           files: app/build/outputs/apk/release/app-release.apk
           make_latest: true
