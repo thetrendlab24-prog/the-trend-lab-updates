@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.1",
+  "versionCode": 3,
+  "versionName": "2.9",
   "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/latest/download/app-release.apk",
-  "releaseNotes": "Mandatory app update support, improved Android system-bar handling, and app stability improvements.",
-  "forceUpdate": true
+  "releaseNotes": "The Trend Lab Customer App v2.9: new branded gold-and-black launcher icon and app improvements.",
+  "forceUpdate": false
 }
