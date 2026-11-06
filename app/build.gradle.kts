@@ -34,8 +34,8 @@ android {
         applicationId = "com.thetrendlab.customer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.9"
+        versionCode = 4
+        versionName = "2.9.1"
     }
 
     buildTypes {
