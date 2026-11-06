@@ -13,6 +13,7 @@ import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Bundle
 import android.os.Build
 import android.os.Environment
@@ -147,11 +148,11 @@ class MainActivity : Activity() {
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 val uri = try { Uri.parse(url ?: return true) } catch (_: Exception) { return true }
-                return !(uri.scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev")
+                return routeNavigation(uri)
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 val uri = request?.url ?: return true
-                return !(uri.scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev")
+                return routeNavigation(uri)
             }
         }
         webView.addJavascriptInterface(UpdateBridge(), "Android")
@@ -178,6 +179,24 @@ class MainActivity : Activity() {
             webView.post { webView.reload() }
         }
         checkForMandatoryUpdate(false)
+    }
+
+    private fun routeNavigation(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return true
+        if (scheme == "https" && uri.host == "the-trend-lab.thetrendlab24.workers.dev") return false
+        return try {
+            val intent = when (scheme) {
+                "http", "https", "tel", "mailto", "sms", "smsto", "upi", "market" -> Intent(Intent.ACTION_VIEW, uri)
+                "intent" -> Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
+                else -> return true
+            }
+            if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+            else Toast.makeText(this, "No app is available to open this link.", Toast.LENGTH_SHORT).show()
+            true
+        } catch (_: Exception) {
+            Toast.makeText(this, "Unable to open this link.", Toast.LENGTH_SHORT).show()
+            true
+        }
     }
 
     private fun showBrandOpening(root: FrameLayout) {
@@ -271,7 +290,18 @@ class MainActivity : Activity() {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { refreshConnectivity(root) }
         }
         networkCallback = callback
-        try { connectivityManager?.registerDefaultNetworkCallback(callback) } catch (_: Exception) { }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connectivityManager?.registerDefaultNetworkCallback(callback)
+            } else {
+                val request = NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                connectivityManager?.registerNetworkCallback(request, callback)
+            }
+        } catch (_: Exception) {
+            // Keep the app usable even if the device blocks network callbacks.
+        }
         refreshConnectivity(root)
     }
 
@@ -519,6 +549,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API")
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) {
+            doubleBackToExitPressedOnce = false
             webView.goBack()
         } else {
             if (doubleBackToExitPressedOnce) {
