@@ -10,3 +10,5 @@ Build workflow refreshed with corrected icon asset.
 Duplicate launcher resource removed; rebuild requested.
 
 Kotlin navigation callback compilation fix applied.
+
+Launcher icon padding crop adjustment applied.
