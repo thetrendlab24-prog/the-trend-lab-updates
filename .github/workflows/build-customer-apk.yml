@@ -30,43 +30,17 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare solid black launcher icon
+      - name: Prepare full-size launcher icon
         run: |
-          python -m pip install --quiet pillow numpy
+          python -m pip install --quiet pillow
           python - <<'PY'
           from PIL import Image
-          from collections import deque
-          import numpy as np
-          src='app/src/main/res/drawable/ic_launcher.webp'
-          im=Image.open(src).convert('RGBA')
-          a=np.array(im)
-          rgb=a[:,:,:3]
-          mask=(rgb.min(2)>218)&((rgb.max(2)-rgb.min(2))<38)
-          h,w=mask.shape
-          seen=np.zeros((h,w),dtype=bool)
-          q=deque()
-          for x in range(w):
-              for y in (0,h-1):
-                  if mask[y,x] and not seen[y,x]:
-                      seen[y,x]=1; q.append((y,x))
-          for y in range(h):
-              for x in (0,w-1):
-                  if mask[y,x] and not seen[y,x]:
-                      seen[y,x]=1; q.append((y,x))
-          while q:
-              y,x=q.popleft()
-              for yy,xx in ((y-1,x),(y+1,x),(y,x-1),(y,x+1)):
-                  if 0<=yy<h and 0<=xx<w and mask[yy,xx] and not seen[yy,xx]:
-                      seen[yy,xx]=1; q.append((yy,xx))
-          a[seen,3]=0
-          artwork=Image.fromarray(a,'RGBA')
-          bbox=artwork.getchannel('A').getbbox()
-          artwork=artwork.crop(bbox)
-          side=512
-          artwork.thumbnail((int(side*.96),int(side*.96)),Image.Resampling.LANCZOS)
-          canvas=Image.new('RGBA',(side,side),(5,3,8,255))
-          canvas.alpha_composite(artwork,((side-artwork.width)//2,(side-artwork.height)//2))
-          canvas.convert('RGB').save('app/src/main/res/drawable/ic_launcher_fixed.png',optimize=True)
+          src = 'app/src/main/res/drawable/ic_launcher.webp'
+          im = Image.open(src).convert('RGB')
+          # Scale the complete square artwork to fill the launcher canvas.
+          # thumbnail() only downsizes and left the 96px source tiny on 512px.
+          im = im.resize((512, 512), Image.Resampling.LANCZOS)
+          im.save('app/src/main/res/drawable/ic_launcher_fixed.png', optimize=True)
           PY
       - name: Build signed release APK
         env:
@@ -78,17 +52,17 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: The-Trend-Lab-Customer-v2.9.3-APK
+          name: The-Trend-Lab-Customer-v2.9.4-APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: customer-v2.9.3
-          name: The Trend Lab Customer App v2.9.3
+          tag_name: customer-v2.9.4
+          name: The Trend Lab Customer App v2.9.4
           body: |
-            The Trend Lab Customer App v2.9.3.
+            The Trend Lab Customer App v2.9.4.
             Launcher icon correction and automatic in-app update metadata.
           files: app/build/outputs/apk/release/app-release.apk
           make_latest: true
@@ -102,15 +76,15 @@ jobs:
             const branch = "fresh-customer-app-cloud-build";
             const current = await github.rest.repos.getContent({owner, repo, path, ref: branch});
             const metadata = {
-              versionCode: 6,
-              versionName: "2.9.3",
+              versionCode: 7,
+              versionName: "2.9.4",
               apkUrl: "https://github.com/" + owner + "/" + repo + "/releases/latest/download/app-release.apk",
-              releaseNotes: "The Trend Lab Customer App v2.9.3: launcher icon correction and improvements.",
+              releaseNotes: "The Trend Lab Customer App v2.9.4: launcher icon correction and improvements.",
               forceUpdate: false
             };
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, path, branch,
-              message: "Publish in-app update metadata for v2.9.3",
+              message: "Publish in-app update metadata for v2.9.4",
               sha: current.data.sha,
               content: Buffer.from(JSON.stringify(metadata, null, 2) + "\\n").toString("base64")
             });
