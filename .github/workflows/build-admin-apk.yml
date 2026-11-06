@@ -28,7 +28,7 @@ jobs:
           gradle-version: '8.9'
       - name: Prepare adaptive Admin app icon
         run: |
-          python -m pip install --quiet pillow
+          python -m pip install --quiet pillow numpy
           python - <<'PY'
           from PIL import Image
           from collections import deque
