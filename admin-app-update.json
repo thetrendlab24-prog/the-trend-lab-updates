@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.5",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.5/app-release.apk",
-  "apkSha256": "2847e36d9f15c7bd10df577b7c4cafb4f335bfec92747e1d4b7336a832e697bb",
+  "versionCode": 7,
+  "versionName": "1.0.6",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.6/app-release.apk",
+  "apkSha256": "4570d641366258695687293456d904c86bec0a9c245724de30ec61b4ff5bea55",
   "forceUpdate": false,
-  "releaseNotes": "Improved Android file picker for product photo and CSV imports, in-app updates, and double-back-to-exit."
+  "releaseNotes": "Fixed Android status-bar overlap, CSV import button availability, stock count contrast, and retained file picker and double-back-to-exit."
 }
