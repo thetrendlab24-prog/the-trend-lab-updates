@@ -180,7 +180,7 @@ class MainActivity : Activity() {
                         });
                       }
                       repair();
-                      new MutationObserver(repair).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','aria-disabled','class','style']});
+                      new MutationObserver(repair).observe(document.documentElement,{childList:true,subtree:true});
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(patch, null)
