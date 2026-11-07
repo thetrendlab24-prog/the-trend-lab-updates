@@ -12,7 +12,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.graphics.Color
-import android.view.WindowInsets
 import android.webkit.*
 import android.widget.Toast
 import org.json.JSONObject
@@ -53,30 +52,14 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         registerDownloadReceiver()
-        // Android 15 enforces edge-to-edge for targetSdk 35. Keep WebView content
-        // below the status bar and above the gesture/navigation area.
+        // Keep the WebView inside the system bars on Android 10–16.
+        // targetSdk 34 below opts out of Android 15 forced edge-to-edge,
+        // avoiding status icons being drawn over the first page controls.
         window.statusBarColor = Color.rgb(16, 27, 42)
         window.navigationBarColor = Color.rgb(16, 27, 42)
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = 0
         web = WebView(this)
-        web.setOnApplyWindowInsetsListener { view, insets ->
-            val top: Int
-            val bottom: Int
-            if (Build.VERSION.SDK_INT >= 30) {
-                top = insets.getInsets(WindowInsets.Type.statusBars()).top
-                bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-            } else {
-                @Suppress("DEPRECATION")
-                val legacyTop = insets.systemWindowInsetTop
-                @Suppress("DEPRECATION")
-                val legacyBottom = insets.systemWindowInsetBottom
-                top = legacyTop
-                bottom = legacyBottom
-            }
-            view.setPadding(0, top, 0, bottom)
-            insets
-        }
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -141,8 +124,65 @@ class MainActivity : Activity() {
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Android-only fixes for stock count contrast and CSV import availability.
-                val patch = "(function(){const css='.stock-quick,.stock-quick *{color:#f3e5bf!important} input[placeholder*=\"Search name\"],input[placeholder*=\"SKU or barcode\"]{color:#f8fafc!important;caret-color:#f3c65b!important} input[placeholder*=\"Search name\"]::placeholder,input[placeholder*=\"SKU or barcode\"]::placeholder{color:#a99bb4!important;opacity:1!important}';function repair(){if(!document.getElementById('tl-admin-android-fixes')){const s=document.createElement('style');s.id='tl-admin-android-fixes';s.textContent=\"\"+css;(document.head||document.documentElement).appendChild(s)}document.querySelectorAll('button,input[type=button],input[type=submit]').forEach(el=>{const t=(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().toLowerCase();if(t.includes('import products csv')){el.disabled=false;el.removeAttribute('disabled');el.removeAttribute('aria-disabled');el.style.opacity='1';el.style.color='#63328a';el.style.cursor='pointer'}})}repair();if(!window.__tlAdminAndroidObserver){window.__tlAdminAndroidObserver=new MutationObserver(repair);window.__tlAdminAndroidObserver.observe(document.documentElement,{childList:true,subtree:true})}})();"
+                // Android-only admin layout repairs. Re-apply after dynamic product-list renders.
+                val patch = """
+                    (function(){
+                      if(window.__tlAdminAndroidPatchInstalled) return;
+                      window.__tlAdminAndroidPatchInstalled = true;
+                      const css = `
+                        input[placeholder*="Search name"],input[placeholder*="SKU or barcode"]{
+                          color:#f8fafc!important;caret-color:#f3c65b!important;
+                        }
+                        input[placeholder*="Search name"]::placeholder,
+                        input[placeholder*="SKU or barcode"]::placeholder{
+                          color:#b9afc5!important;opacity:1!important;
+                        }
+                        .stock-quick,.stock-quick *,
+                        [class*="stock-quick"],[class*="stock-quick"] *{
+                          color:#f3e5bf!important;-webkit-text-fill-color:#f3e5bf!important;
+                        }
+                        button[disabled],button:disabled,
+                        [role="button"][aria-disabled="true"]{
+                          opacity:1!important;
+                        }
+                      `;
+                      function repair(){
+                        if(!document.getElementById('tl-admin-android-fixes')){
+                          const style=document.createElement('style');
+                          style.id='tl-admin-android-fixes';style.textContent=css;
+                          (document.head||document.documentElement).appendChild(style);
+                        }
+                        document.querySelectorAll('button,input[type=button],input[type=submit],label,[role=button]').forEach(el=>{
+                          const text=(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().toLowerCase();
+                          if(text.includes('import products csv')){
+                            el.disabled=false;el.removeAttribute('disabled');
+                            el.removeAttribute('aria-disabled');
+                            el.style.setProperty('opacity','1','important');
+                            el.style.setProperty('color','#63328a','important');
+                            el.style.setProperty('-webkit-text-fill-color','#63328a','important');
+                            el.style.setProperty('pointer-events','auto','important');
+                            el.style.setProperty('cursor','pointer','important');
+                          }
+                        });
+                        // The quantity between the minus/plus controls is often a plain text node.
+                        document.querySelectorAll('button').forEach(btn=>{
+                          const t=(btn.innerText||'').trim();
+                          if(t==='+'||t==='-'||t==='−'){
+                            const row=btn.parentElement;
+                            if(row){
+                              row.style.setProperty('color','#f3e5bf','important');
+                              row.querySelectorAll('*').forEach(child=>{
+                                child.style.setProperty('color','#f3e5bf','important');
+                                child.style.setProperty('-webkit-text-fill-color','#f3e5bf','important');
+                              });
+                            }
+                          }
+                        });
+                      }
+                      repair();
+                      new MutationObserver(repair).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','aria-disabled','class','style']});
+                    })();
+                """.trimIndent()
                 view?.evaluateJavascript(patch, null)
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
