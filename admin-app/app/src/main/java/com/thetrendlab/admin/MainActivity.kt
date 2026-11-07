@@ -346,27 +346,44 @@ class MainActivity : Activity() {
 
     private fun checkForAppUpdate() {
         thread(name = "admin-update-check") {
+            var connection: HttpURLConnection? = null
             try {
-                val connection = (URL(updateManifestUrl).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000; readTimeout = 10000
-                    setRequestProperty("Cache-Control", "no-cache")
+                val cacheBust = System.currentTimeMillis()
+                connection = (URL("$updateManifestUrl?ts=$cacheBust").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    requestMethod = "GET"
+                    setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
+                    setRequestProperty("Pragma", "no-cache")
+                    setRequestProperty("Accept", "application/json")
                 }
+                val status = connection.responseCode
+                if (status !in 200..299) throw IllegalStateException("Update server returned HTTP $status")
                 val json = connection.inputStream.bufferedReader().use { it.readText() }
-                connection.disconnect()
                 val update = JSONObject(json)
                 val latestCode = update.optInt("versionCode", 0)
-                val currentCode = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+                val latestName = update.optString("versionName", "new version")
+                val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                @Suppress("DEPRECATION")
+                val currentCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode.toInt() else packageInfo.versionCode
                 if (latestCode > currentCode) {
-                    val version = update.optString("versionName", "new version")
                     val apkUrl = update.optString("apkUrl")
                     val sha256 = update.optString("apkSha256")
                     val notes = update.optString("releaseNotes", "A new version is available.")
-                    if (apkUrl.startsWith("https://") && sha256.isNotBlank()) {
-                        runOnUiThread { showUpdateDialog(version, notes, apkUrl, sha256) }
+                    if (!apkUrl.startsWith("https://") || sha256.isBlank()) {
+                        throw IllegalStateException("Update manifest is missing a valid APK URL or checksum")
+                    }
+                    runOnUiThread { if (!isFinishing && !isDestroyed) showUpdateDialog(latestName, notes, apkUrl, sha256) }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TrendLabUpdater", "Update check failed", e)
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        Toast.makeText(this, "Update check failed. Check internet and reopen the app.", Toast.LENGTH_LONG).show()
                     }
                 }
-            } catch (_: Exception) {
-                // Update checks are optional; never block opening the Admin panel.
+            } finally {
+                connection?.disconnect()
             }
         }
     }
