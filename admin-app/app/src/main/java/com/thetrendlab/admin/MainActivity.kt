@@ -12,6 +12,8 @@ class MainActivity : Activity() {
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private val fileChooserRequestCode = 7103
     private val adminUrl = "https://the-trend-lab.thetrendlab24.workers.dev/admin.html"
+    private var backPressedAt = 0L
+    private val exitPromptWindowMs = 2000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,7 +117,21 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (::web.isInitialized && web.canGoBack()) web.goBack() else super.onBackPressed()
+        // Keep normal WebView navigation; require a second press only at the root page.
+        if (::web.isInitialized && web.canGoBack()) {
+            web.goBack()
+            backPressedAt = 0L
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - backPressedAt <= exitPromptWindowMs) {
+            backPressedAt = 0L
+            finish()
+        } else {
+            backPressedAt = now
+            Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onDestroy() {
