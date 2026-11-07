@@ -24,8 +24,8 @@ android {
         applicationId = "com.thetrendlab.adminapp2026"
         minSdk = 23
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
     }
     buildTypes { release { signingConfig = signingConfigs.getByName("release"); isMinifyEnabled = false } }
     compileOptions {
