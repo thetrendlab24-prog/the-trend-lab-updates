@@ -55,9 +55,9 @@ jobs:
       - name: Publish versioned Admin APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: admin-v1.0.4
-          name: The Trend Lab Admin v1.0.4
-          body: "Includes in-app update checking, verified APK download/install, product photo file picker support, and double-back-to-exit."
+          tag_name: admin-v1.0.5
+          name: The Trend Lab Admin v1.0.5
+          body: "Improved Android Storage Access Framework file picker for product photos and CSV imports, plus in-app updates and double-back-to-exit."
           files: admin-app/app/build/outputs/apk/release/app-release.apk
           make_latest: false
       - name: Update in-app update manifest
@@ -69,12 +69,12 @@ jobs:
           import json, os
           path = "admin-app-update.json"
           data = {
-            "versionCode": 5,
-            "versionName": "1.0.4",
-            "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.4/app-release.apk",
+            "versionCode": 6,
+            "versionName": "1.0.5",
+            "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.5/app-release.apk",
             "apkSha256": os.environ["APK_SHA256"],
             "forceUpdate": False,
-            "releaseNotes": "In-app updates, verified APK installation, product photo picker support, and double-back-to-exit."
+            "releaseNotes": "Improved Android file picker for product photo and CSV imports, in-app updates, and double-back-to-exit."
           }
           with open(path, "w") as f: json.dump(data, f, indent=2); f.write("\n")
           PY
