@@ -73,21 +73,43 @@ class MainActivity : Activity() {
                 this@MainActivity.fileChooserCallback?.onReceiveValue(null)
                 this@MainActivity.fileChooserCallback = filePathCallback
                 return try {
-                    val chooserIntent = fileChooserParams?.createIntent()
-                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+                    // Use Android's Storage Access Framework directly. This is more reliable
+                    // than WebChromeClient.createIntent() across Android 10-15 and supports
+                    // both image/* uploads and CSV/document imports in the same WebView.
+                    val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                        putExtra(Intent.EXTRA_LOCAL_ONLY, false)
+                        val accepted = fileChooserParams?.acceptTypes
+                            ?.flatMap { it.split(",") }
+                            ?.map { it.trim().lowercase() }
+                            ?.filter { it.isNotBlank() && !it.startsWith(".") && it.contains("/") }
+                            ?.distinct()
+                            ?.toTypedArray()
+                        if (!accepted.isNullOrEmpty()) {
+                            putExtra(Intent.EXTRA_MIME_TYPES, accepted)
                         }
-                    chooserIntent.addCategory(Intent.CATEGORY_OPENABLE)
-                    if (fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
-                        chooserIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
                     }
-                    startActivityForResult(chooserIntent, fileChooserRequestCode)
+                    startActivityForResult(Intent.createChooser(picker, "Select files"), fileChooserRequestCode)
                     true
                 } catch (_: Exception) {
-                    this@MainActivity.fileChooserCallback?.onReceiveValue(null)
-                    this@MainActivity.fileChooserCallback = null
-                    Toast.makeText(this@MainActivity, "Unable to open file picker.", Toast.LENGTH_SHORT).show()
-                    false
+                    try {
+                        val fallback = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                                fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                        }
+                        startActivityForResult(Intent.createChooser(fallback, "Select files"), fileChooserRequestCode)
+                        true
+                    } catch (_: Exception) {
+                        this@MainActivity.fileChooserCallback?.onReceiveValue(null)
+                        this@MainActivity.fileChooserCallback = null
+                        Toast.makeText(this@MainActivity, "Unable to open file picker. Please try again.", Toast.LENGTH_LONG).show()
+                        false
+                    }
                 }
             }
         }
