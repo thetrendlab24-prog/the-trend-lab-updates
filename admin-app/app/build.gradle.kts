@@ -1,9 +1,9 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
-import java.util.Base64
-
 android {
     namespace = "com.thetrendlab.admin"
     compileSdk = 35
@@ -27,12 +27,7 @@ android {
         versionCode = 4
         versionName = "1.0.3"
     }
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-        }
-    }
+    buildTypes { release { signingConfig = signingConfigs.getByName("release"); isMinifyEnabled = false } }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
