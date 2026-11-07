@@ -1,22 +1,56 @@
 package com.thetrendlab.admin
 
 import android.app.Activity
-import android.os.Bundle
-import android.webkit.*
+import android.app.AlertDialog
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.webkit.*
 import android.widget.Toast
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
+import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private val fileChooserRequestCode = 7103
     private val adminUrl = "https://the-trend-lab.thetrendlab24.workers.dev/admin.html"
+    private val updateManifestUrl = "https://raw.githubusercontent.com/thetrendlab24-prog/the-trend-lab-updates/admin-apk-build/admin-app-update.json"
     private var backPressedAt = 0L
     private val exitPromptWindowMs = 2000L
+    private var pendingDownloadId = -1L
+    private var receiverRegistered = false
+
+    private val downloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) != pendingDownloadId) return
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val query = DownloadManager.Query().setFilterById(pendingDownloadId)
+            manager.query(query).use { cursor ->
+                if (!cursor.moveToFirst()) return
+                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                    Toast.makeText(this@MainActivity, "Update download failed. Please try again.", Toast.LENGTH_LONG).show()
+                    return
+                }
+            }
+            val apkUri = manager.getUriForDownloadedFile(pendingDownloadId) ?: return
+            verifyAndInstall(apkUri)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerDownloadReceiver()
         web = WebView(this)
         web.settings.apply {
             javaScriptEnabled = true
@@ -33,19 +67,15 @@ class MainActivity : Activity() {
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
-                webView: WebView?,
-                filePathCallback: ValueCallback<Array<Uri>>?,
+                webView: WebView?, filePathCallback: ValueCallback<Array<Uri>>?,
                 fileChooserParams: FileChooserParams?
             ): Boolean {
-                // Finish any previous picker request before opening a new one.
                 this@MainActivity.fileChooserCallback?.onReceiveValue(null)
                 this@MainActivity.fileChooserCallback = filePathCallback
-
                 return try {
                     val chooserIntent = fileChooserParams?.createIntent()
                         ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
+                            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
                         }
                     chooserIntent.addCategory(Intent.CATEGORY_OPENABLE)
                     if (fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
@@ -68,19 +98,116 @@ class MainActivity : Activity() {
             }
             @Suppress("DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                val value = url ?: return true
-                return route(Uri.parse(value))
+                return route(Uri.parse(url ?: return true))
             }
         }
         setContentView(web)
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(adminUrl)
+        checkForAppUpdate()
+    }
+
+    private fun registerDownloadReceiver() {
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(downloadReceiver, filter)
+        }
+        receiverRegistered = true
+    }
+
+    private fun checkForAppUpdate() {
+        thread(name = "admin-update-check") {
+            try {
+                val connection = (URL(updateManifestUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000; readTimeout = 10000
+                    setRequestProperty("Cache-Control", "no-cache")
+                }
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val update = JSONObject(json)
+                val latestCode = update.optInt("versionCode", 0)
+                val currentCode = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+                if (latestCode > currentCode) {
+                    val version = update.optString("versionName", "new version")
+                    val apkUrl = update.optString("apkUrl")
+                    val sha256 = update.optString("apkSha256")
+                    val notes = update.optString("releaseNotes", "A new version is available.")
+                    if (apkUrl.startsWith("https://") && sha256.isNotBlank()) {
+                        runOnUiThread { showUpdateDialog(version, notes, apkUrl, sha256) }
+                    }
+                }
+            } catch (_: Exception) {
+                // Update checks are optional; never block opening the Admin panel.
+            }
+        }
+    }
+
+    private fun showUpdateDialog(version: String, notes: String, apkUrl: String, expectedHash: String) {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("The Trend Lab Admin update")
+            .setMessage("Version $version is available.\n\n$notes\n\nDownload and install now?")
+            .setNegativeButton("Later", null)
+            .setPositiveButton("Update") { _, _ -> downloadUpdate(apkUrl, expectedHash) }
+            .show()
+    }
+
+    private fun downloadUpdate(apkUrl: String, expectedHash: String) {
+        try {
+            val request = DownloadManager.Request(Uri.parse(apkUrl))
+                .setTitle("The Trend Lab Admin update")
+                .setDescription("Downloading update…")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+                .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "the-trend-lab-admin-update.apk")
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            pendingDownloadId = manager.enqueue(request)
+            getSharedPreferences("admin_update", MODE_PRIVATE).edit().putString("expected_sha256", expectedHash.lowercase()).apply()
+            Toast.makeText(this, "Update downloading…", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Unable to start update download.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun verifyAndInstall(apkUri: Uri) {
+        thread(name = "admin-update-verify") {
+            try {
+                val digest = MessageDigest.getInstance("SHA-256")
+                contentResolver.openInputStream(apkUri)?.use { input ->
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count <= 0) break
+                        digest.update(buffer, 0, count)
+                    }
+                } ?: throw IllegalStateException("Cannot read downloaded APK")
+                val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                val expected = getSharedPreferences("admin_update", MODE_PRIVATE).getString("expected_sha256", "") ?: ""
+                if (expected.isBlank() || actual != expected) throw SecurityException("APK checksum mismatch")
+                runOnUiThread {
+                    try {
+                        val install = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(apkUri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(install)
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "Please allow installs from this app in Android settings.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread { Toast.makeText(this, "Update verification failed. Please download again.", Toast.LENGTH_LONG).show() }
+            }
+        }
     }
 
     @Deprecated("Deprecated in Android, retained for WebView file chooser compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != fileChooserRequestCode) return
-
         val callback = fileChooserCallback ?: return
         fileChooserCallback = null
         val results: Array<Uri>? = if (resultCode == Activity.RESULT_OK) {
@@ -117,17 +244,12 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        // Keep normal WebView navigation; require a second press only at the root page.
         if (::web.isInitialized && web.canGoBack()) {
-            web.goBack()
-            backPressedAt = 0L
-            return
+            web.goBack(); backPressedAt = 0L; return
         }
-
         val now = System.currentTimeMillis()
         if (now - backPressedAt <= exitPromptWindowMs) {
-            backPressedAt = 0L
-            finish()
+            backPressedAt = 0L; finish()
         } else {
             backPressedAt = now
             Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
@@ -137,6 +259,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
+        if (receiverRegistered) unregisterReceiver(downloadReceiver)
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
