@@ -1,8 +1,8 @@
 {
-  "versionCode": 8,
-  "versionName": "1.0.7",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.6/app-release.apk",
+  "versionCode": 10,
+  "versionName": "1.0.9",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.9/app-release.apk",
   "apkSha256": "c1a442638b905aeae1bcd48ac45a7dd0edeb267be5c46eabb40e0c3908619110",
   "forceUpdate": false,
-  "releaseNotes": "Fixed in-app update detection with cache-busting, HTTP status validation, and visible update-check errors; includes 2-second animated splash."
+  "releaseNotes": "Improved in-app update detection with cache-busting, HTTP validation, and visible error feedback. Includes the animated splash screen."
 }
