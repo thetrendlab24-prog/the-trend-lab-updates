@@ -12,6 +12,17 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.view.Gravity
+import android.view.View
+import android.view.animation.DecelerateInterpolator
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.webkit.*
 import android.widget.Toast
 import org.json.JSONObject
@@ -30,6 +41,7 @@ class MainActivity : Activity() {
     private val exitPromptWindowMs = 2000L
     private var pendingDownloadId = -1L
     private var receiverRegistered = false
+    private var splashOverlay: View? = null
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -194,10 +206,132 @@ class MainActivity : Activity() {
                 return route(Uri.parse(url ?: return true))
             }
         }
-        setContentView(web)
+        val root = FrameLayout(this)
+        root.addView(web, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(root)
+        showTwoSecondSplash(root)
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(adminUrl)
         checkForAppUpdate()
     }
+
+    private fun showTwoSecondSplash(root: FrameLayout) {
+        val overlay = FrameLayout(this)
+        val bg = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(8,17,37), Color.rgb(16,31,53), Color.rgb(7,15,32)))
+        overlay.background = bg
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        val logoFrame = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(30).toFloat()
+                setColor(Color.rgb(13,29,50))
+                setStroke(dp(2), Color.rgb(224,178,75))
+            }
+            elevation = dp(16).toFloat()
+            alpha = 0f
+            scaleX = 0.72f
+            scaleY = 0.72f
+        }
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.admin_icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(9),dp(9),dp(9),dp(9))
+            contentDescription = "The Trend Lab logo"
+        }
+        logoFrame.addView(logo, FrameLayout.LayoutParams(dp(116),dp(116),Gravity.CENTER))
+        content.addView(logoFrame, LinearLayout.LayoutParams(dp(136),dp(136)).apply {
+            bottomMargin = dp(28)
+        })
+        val brand = TextView(this).apply {
+            text = "The Trend Lab"
+            setTextColor(Color.rgb(246,198,91))
+            textSize = 31f
+            typeface = Typeface.create("serif",Typeface.BOLD)
+            gravity = Gravity.CENTER
+            alpha = 0f
+        }
+        content.addView(brand)
+        val subtitle = TextView(this).apply {
+            text = "ADMIN PANEL"
+            setTextColor(Color.rgb(190,201,218))
+            textSize = 11f
+            typeface = Typeface.create("sans-serif-medium",Typeface.NORMAL)
+            letterSpacing = 0.34f
+            gravity = Gravity.CENTER
+            alpha = 0f
+        }
+        content.addView(subtitle, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(9) })
+        val track = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dp(5).toFloat()
+                setColor(Color.rgb(44,58,78))
+            }
+        }
+        val fill = View(this).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dp(5).toFloat()
+                setColor(Color.rgb(239,190,79))
+            }
+            scaleX = 0f
+            pivotX = 0f
+        }
+        track.addView(fill, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        content.addView(track, LinearLayout.LayoutParams(dp(210),dp(4)).apply {
+            topMargin = dp(34)
+        })
+        overlay.addView(content, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        root.addView(overlay, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        splashOverlay = overlay
+
+        AnimatorSet().apply {
+            playTogether(
+                ObjectAnimator.ofFloat(logoFrame,View.ALPHA,0f,1f),
+                ObjectAnimator.ofFloat(logoFrame,View.SCALE_X,0.72f,1f),
+                ObjectAnimator.ofFloat(logoFrame,View.SCALE_Y,0.72f,1f)
+            )
+            duration = 520
+            interpolator = DecelerateInterpolator()
+            start()
+        }
+        ObjectAnimator.ofFloat(brand,View.ALPHA,0f,1f).apply {
+            startDelay = 280; duration = 520; interpolator = DecelerateInterpolator(); start()
+        }
+        ObjectAnimator.ofFloat(subtitle,View.ALPHA,0f,1f).apply {
+            startDelay = 430; duration = 420; interpolator = DecelerateInterpolator(); start()
+        }
+        ObjectAnimator.ofFloat(fill,View.SCALE_X,0f,1f).apply {
+            startDelay = 350; duration = 1250; interpolator = DecelerateInterpolator(); start()
+        }
+        overlay.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            ObjectAnimator.ofFloat(overlay,View.ALPHA,1f,0f).apply {
+                duration = 300
+                interpolator = DecelerateInterpolator()
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        root.removeView(overlay)
+                        splashOverlay = null
+                    }
+                })
+                start()
+            }
+        },1700L)
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun registerDownloadReceiver() {
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
