@@ -5,9 +5,10 @@ on:
     paths:
       - 'admin-app/**'
       - '.github/workflows/build-admin-apk.yml'
+      - 'admin-app-update.json'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: admin-apk-build
   cancel-in-progress: true
@@ -32,16 +33,21 @@ jobs:
           python - <<'PY'
           from PIL import Image, ImageOps
           src = Image.open('admin-app/app/src/main/res/drawable/admin_icon.jpg').convert('RGB')
-          # Preserve the complete supplied square artwork; do not shrink it into an adaptive foreground safe-zone.
           icon = ImageOps.fit(src, (512, 512), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
           icon.save('admin-app/app/src/main/res/drawable/ic_launcher.png', optimize=True)
           PY
-      - name: Build Admin APK
-        run: gradle --no-daemon -p admin-app assembleDebug
-      - name: Upload Admin APK
-        uses: actions/upload-artifact@v4
+      - name: Build signed Admin APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon -p admin-app assembleRelease
+      - name: Publish APK release
+        uses: softprops/action-gh-release@v2
         with:
-          name: The-Trend-Lab-Admin-v1.0.0-Installable-APK
-          path: admin-app/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
+          tag_name: admin-v1.0.3
+          name: The Trend Lab Admin v1.0.3
+          body: Signed Admin APK with in-app update support.
+          files: admin-app/app/build/outputs/apk/release/app-release.apk
+          make_latest: false
