@@ -1,8 +1,8 @@
 {
   "versionCode": 8,
   "versionName": "1.0.7",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.7/app-release.apk",
-  "apkSha256": "c7237cc872620b3b997193713cba76fafcedbba5595d0c35854376e9bc9de0c1",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.6/app-release.apk",
+  "apkSha256": "ff1dd21a00b48a80b57f178a319684c7fca6986d59e548007ba3ad038589dbf5",
   "forceUpdate": false,
-  "releaseNotes": "Fixed status-bar overlap by using system-managed insets, improved CSV import button visibility and stock quantity contrast."
+  "releaseNotes": "Added a premium 2-second animated native splash screen with The Trend Lab logo and gold progress animation."
 }
