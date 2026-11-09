@@ -440,8 +440,13 @@ class MainActivity : Activity() {
                     val apkSha256 = update.optString("apkSha256").lowercase(Locale.ROOT)
                     val forced = update.optBoolean("forceUpdate", false)
                     runOnUiThread { showUpdateDialog(name, notes, apkUrl, apkSha256, forced) }
-                } else if (showLatestMessage) {
-                    runOnUiThread { Toast.makeText(this, "You're using the latest version.", Toast.LENGTH_LONG).show() }
+                } else {
+                    // Metadata is at or below the installed build: discard any stale installer
+                    // state left behind after Android completed a previous update.
+                    runOnUiThread {
+                        clearPendingUpdateDownload(true)
+                        if (showLatestMessage) Toast.makeText(this, "You're using the latest version.", Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: Exception) {
                 if (showLatestMessage) {
@@ -582,14 +587,40 @@ class MainActivity : Activity() {
         if (progressDialog?.isShowing != true) progressDialog?.show()
     }
 
+    private fun clearPendingUpdateDownload(deleteFile: Boolean = true) {
+        val path = updatePrefs.getString("apk_path", null)
+        updatePrefs.edit()
+            .remove("apk_path")
+            .remove("expected_sha256")
+            .putBoolean("install_pending", false)
+            .apply()
+        downloadedApkFile = null
+        if (deleteFile && !path.isNullOrBlank()) {
+            try { File(path).delete() } catch (_: Exception) {}
+        }
+    }
+
     private fun restorePendingUpdateDownload() {
         val path = updatePrefs.getString("apk_path", null) ?: return
         val file = File(path)
-        if (file.exists() && file.length() > 0) {
+        if (!file.exists() || file.length() <= 0) {
+            clearPendingUpdateDownload(false)
+            return
+        }
+        try {
+            val installedInfo = packageManager.getPackageInfo(packageName, 0)
+            val installedCode = if (Build.VERSION.SDK_INT >= 28) installedInfo.longVersionCode else @Suppress("DEPRECATION") installedInfo.versionCode.toLong()
+            val archiveInfo = packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+            val downloadedCode = if (archiveInfo == null) -1L else if (Build.VERSION.SDK_INT >= 28) archiveInfo.longVersionCode else @Suppress("DEPRECATION") archiveInfo.versionCode.toLong()
+            // An APK already installed (or older) must never be offered again after restart.
+            if (downloadedCode <= installedCode) {
+                clearPendingUpdateDownload(true)
+                return
+            }
             downloadedApkFile = file
             showInstallReadyDialog()
-        } else {
-            updatePrefs.edit().remove("apk_path").putBoolean("install_pending", false).apply()
+        } catch (_: Exception) {
+            clearPendingUpdateDownload(true)
         }
     }
 
