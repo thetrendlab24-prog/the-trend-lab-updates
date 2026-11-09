@@ -199,6 +199,68 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(categoryShelfLayoutFix, null)
 
+                // APK-only: replace repeated generic category grid icons with distinct,
+                // category-specific symbols. Match the visible category title, not card order.
+                val categorySpecificIcons = """
+                    (function(){
+                      if(window.__ttlCategorySpecificIconsInstalled)return;
+                      window.__ttlCategorySpecificIconsInstalled=true;
+                      var iconMap={
+                        'accessories & utility':'👜',
+                        'beauty & personal care':'💄',
+                        'fashion jewellery & accessories':'💎',
+                        'fragrance & grooming':'🧴',
+                        'gents':'👔',
+                        'home & linen':'🛏️',
+                        'innerwear':'🩲',
+                        'kids wear':'🧸',
+                        'ladies':'👗',
+                        'men’s clothing':'👕',
+                        "men's clothing":'👕',
+                        'review – unclassified':'📦',
+                        'review - unclassified':'📦',
+                        'sarees & dupattas':'🥻',
+                        'women’s clothing':'👚',
+                        "women's clothing":'👚'
+                      };
+                      function norm(t){return (t||'').replace(/\\s+/g,' ').trim().toLowerCase();}
+                      function apply(){
+                        try{
+                          Object.keys(iconMap).forEach(function(name){
+                            var labels=Array.from(document.querySelectorAll('body *')).filter(function(el){
+                              if(el.children.length>2)return false;
+                              return norm(el.innerText||el.textContent)===name;
+                            });
+                            labels.forEach(function(label){
+                              var node=label, target=null, best=Infinity;
+                              for(var depth=0;node&&depth<9;depth++,node=node.parentElement){
+                                var r=node.getBoundingClientRect();
+                                var svg=node.querySelector('svg');
+                                if(svg&&r.width>=90&&r.height>=90&&r.width<=320&&r.height<=360){
+                                  var area=r.width*r.height;
+                                  if(area<best){best=area;target=node;}
+                                }
+                              }
+                              if(!target||target.querySelector('[data-ttl-category-icon="'+name+'"]'))return;
+                              var svg=target.querySelector('svg');
+                              if(!svg)return;
+                              var replacement=document.createElement('span');
+                              replacement.setAttribute('data-ttl-category-icon',name);
+                              replacement.textContent=iconMap[name];
+                              replacement.style.cssText='display:inline-flex;align-items:center;justify-content:center;font-size:34px;line-height:1;width:1.25em;height:1.25em;filter:drop-shadow(0 2px 5px rgba(91,35,125,.18));';
+                              svg.replaceWith(replacement);
+                            });
+                          });
+                        }catch(e){console.warn('Category icon enhancement:',e);}
+                      }
+                      apply();
+                      var observer=new MutationObserver(apply);
+                      observer.observe(document.documentElement,{childList:true,subtree:true});
+                      setTimeout(apply,500);setTimeout(apply,1500);setTimeout(apply,3500);
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(categorySpecificIcons, null)
+
                 val versionSync = """
                     (function() {
                       try {
