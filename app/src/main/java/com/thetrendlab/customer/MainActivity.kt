@@ -561,19 +561,17 @@ class MainActivity : Activity() {
 
     private fun startUpdateDownload(apkUrl: String, expectedSha256: String) {
         val parsed = try { Uri.parse(apkUrl) } catch (_: Exception) { null }
-        if (parsed == null || parsed.scheme != "https" || parsed.host !in listOf("github.com", "objects.githubusercontent.com") || !expectedSha256.matches(Regex("^[a-f0-9]{64}$")) ) {
+        if (parsed == null || parsed.scheme != "https" || parsed.host !in listOf("github.com", "objects.githubusercontent.com")) {
             Toast.makeText(this, "The update download link is invalid.", Toast.LENGTH_LONG).show()
             return
         }
-        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
-            pendingDownloadUrl = apkUrl
-            pendingExpectedSha256 = expectedSha256
-            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-            startActivity(intent)
-            Toast.makeText(this, "Allow installs from this app, then return here to continue.", Toast.LENGTH_LONG).show()
-            return
+        // Do not request package-install privileges or silently stage APK installation.
+        // Open the official GitHub release in the browser; the user downloads and installs it manually.
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, parsed))
+        } catch (_: Exception) {
+            Toast.makeText(this, "No browser is available to download the update.", Toast.LENGTH_LONG).show()
         }
-        enqueueUpdateDownload(apkUrl, expectedSha256)
     }
 
     private fun enqueueUpdateDownload(apkUrl: String, expectedSha256: String) {
