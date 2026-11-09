@@ -146,61 +146,10 @@ class MainActivity : Activity() {
                 // APK-only robust category shelf fix. Detects category blocks by their visible
                 // "SHOP COLLECTION" label instead of assuming a website-specific element ID.
                 // Re-runs after dynamic rendering because product shelves are inserted asynchronously.
-                val categoryShelfLayoutFix = """
-                    (function(){
-                      if(window.__ttlCategoryShelfFixInstalled)return;
-                      window.__ttlCategoryShelfFixInstalled=true;
-                      function applyCategoryShelfFix(){
-                        try{
-                          var all=Array.from(document.querySelectorAll('body *'));
-                          var labels=all.filter(function(el){
-                            if(el.children.length>2)return false;
-                            var t=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
-                            return t==='SHOP COLLECTION';
-                          });
-                          if(labels.length<2)return;
-                          function ancestors(el){var a=[];while(el&&el!==document.body){a.push(el);el=el.parentElement;}return a;}
-                          var chains=labels.map(ancestors);
-                          var common=chains[0].find(function(node){return chains.every(function(chain){return chain.indexOf(node)>=0;});});
-                          if(!common)return;
-                          var branches=labels.map(function(label){
-                            var node=label;
-                            while(node.parentElement&&node.parentElement!==common)node=node.parentElement;
-                            return node;
-                          });
-                          var unique=Array.from(new Set(branches));
-                          if(unique.length<2)return;
-                          common.style.setProperty('display','flex','important');
-                          common.style.setProperty('flex-direction','column','important');
-                          common.style.setProperty('align-items','stretch','important');
-                          common.style.setProperty('grid-template-columns','none','important');
-                          common.style.setProperty('grid-auto-flow','row','important');
-                          common.style.setProperty('column-count','1','important');
-                          unique.forEach(function(section){
-                            section.style.setProperty('display','block','important');
-                            section.style.setProperty('position','relative','important');
-                            section.style.setProperty('float','none','important');
-                            section.style.setProperty('clear','both','important');
-                            section.style.setProperty('width','100%','important');
-                            section.style.setProperty('max-width','100%','important');
-                            section.style.setProperty('min-width','0','important');
-                            section.style.setProperty('flex','0 0 auto','important');
-                            section.style.setProperty('box-sizing','border-box','important');
-                          });
-                        }catch(e){console.warn('Category shelf layout fix:',e);}
-                      }
-                      applyCategoryShelfFix();
-                      var observer=new MutationObserver(function(){applyCategoryShelfFix();});
-                      observer.observe(document.documentElement,{childList:true,subtree:true});
-                      setTimeout(applyCategoryShelfFix,500);
-                      setTimeout(applyCategoryShelfFix,1500);
-                      setTimeout(applyCategoryShelfFix,3500);
-                    })();
-                """.trimIndent()
-                view?.evaluateJavascript(categoryShelfLayoutFix, null)
+                // Category shelf layout is controlled by responsive website CSS.
+                // Avoid mutating product-grid DOM from the WebView: it can interfere
+                // with the initial All-products render during asynchronous catalogue loading.
 
-                // APK-only: replace repeated generic category grid icons with distinct,
-                // category-specific symbols. Match the visible category title, not card order.
                 val categorySpecificIcons = """
                     (function(){
                       var iconMap={
