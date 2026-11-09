@@ -155,7 +155,7 @@ class MainActivity : Activity() {
                           var all=Array.from(document.querySelectorAll('body *'));
                           var labels=all.filter(function(el){
                             if(el.children.length>2)return false;
-                            var t=(el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim().toUpperCase();
+                            var t=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
                             return t==='SHOP COLLECTION';
                           });
                           if(labels.length<2)return;
