@@ -221,7 +221,7 @@ class MainActivity : Activity() {
                         'women’s clothing':'👚',
                         "women's clothing":'👚'
                       };
-                      function norm(t){return (t||'').normalize('NFKC').replace(/[’]/g,"'").replace(/[–—]/g,'-').replace(/\\s+/g,' ').trim().toLowerCase();}
+                      function norm(t){return (t||'').normalize('NFKC').replace(/[’]/g,"'").replace(/[–—]/g,'-').replace(/\s+/g,' ').trim().toLowerCase();}
                       function apply(){
                         try{
                           document.querySelectorAll('.category-tile').forEach(function(tile){
