@@ -23,6 +23,8 @@ android {
         }
     }
 
+    dependencies { implementation("androidx.core:core-ktx:1.15.0") }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -34,8 +36,8 @@ android {
         applicationId = "com.thetrendlab.customer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 22
-        versionName = "2.10.9"
+        versionCode = 23
+        versionName = "2.11.0"
     }
 
     buildTypes {
