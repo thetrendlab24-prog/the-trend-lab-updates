@@ -42,6 +42,9 @@ class MainActivity : Activity() {
     private var pendingDownloadId = -1L
     private var receiverRegistered = false
     private var splashOverlay: View? = null
+    private var splashStartedAt = 0L
+    private var readySamples = 0
+    private var splashClosing = false
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -196,6 +199,7 @@ class MainActivity : Activity() {
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(patch, null)
+                waitForAdminReady()
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val uri = request?.url ?: return true
@@ -295,6 +299,10 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT
         ))
         splashOverlay = overlay
+        splashStartedAt = android.os.SystemClock.uptimeMillis()
+        readySamples = 0
+        splashClosing = false
+        waitForAdminReady()
 
         AnimatorSet().apply {
             playTogether(
@@ -315,20 +323,59 @@ class MainActivity : Activity() {
         ObjectAnimator.ofFloat(fill,View.SCALE_X,0f,1f).apply {
             startDelay = 350; duration = 1250; interpolator = DecelerateInterpolator(); start()
         }
-        overlay.postDelayed({
-            if (isFinishing || isDestroyed) return@postDelayed
-            ObjectAnimator.ofFloat(overlay,View.ALPHA,1f,0f).apply {
-                duration = 300
-                interpolator = DecelerateInterpolator()
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) {
-                        root.removeView(overlay)
-                        splashOverlay = null
-                    }
-                })
-                start()
+    }
+
+    // Keep the native splash visible while the website restores its saved session.
+    // Never display an intermediate login form over an already authenticated session.
+    private fun waitForAdminReady() {
+        if (!::web.isInitialized || splashOverlay == null || splashClosing) return
+        val elapsed = android.os.SystemClock.uptimeMillis() - splashStartedAt
+        if (elapsed >= 12000L) {
+            closeSplash()
+            return
+        }
+        web.evaluateJavascript("""
+            (function(){
+              const ready = document.readyState === 'complete';
+              const body = document.body;
+              if (!ready || !body || body.innerText.trim().length < 20) return 'loading';
+              const password = [...document.querySelectorAll('input[type="password"]')]
+                .some(e => e.getClientRects().length > 0);
+              if (password) return 'login';
+              return 'ready';
+            })()
+        """.trimIndent()) { result ->
+            if (splashOverlay == null || splashClosing || isFinishing || isDestroyed) return@evaluateJavascript
+            val state = result.trim('"')
+            val age = android.os.SystemClock.uptimeMillis() - splashStartedAt
+            if (state == "ready") readySamples++ else readySamples = 0
+            // Three consecutive ready samples avoid exposing a transient auth screen.
+            if (age >= 1900L && readySamples >= 3) {
+                closeSplash()
+            } else if (age >= 6500L && state == "login") {
+                // Genuine signed-out users should not be stuck behind the splash.
+                closeSplash()
+            } else {
+                web.postDelayed({ waitForAdminReady() }, 350L)
             }
-        },1700L)
+        }
+    }
+
+    private fun closeSplash() {
+        val overlay = splashOverlay ?: return
+        if (splashClosing || isFinishing || isDestroyed) return
+        splashClosing = true
+        ObjectAnimator.ofFloat(overlay, View.ALPHA, 1f, 0f).apply {
+            duration = 250
+            interpolator = DecelerateInterpolator()
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    (overlay.parent as? FrameLayout)?.removeView(overlay)
+                    splashOverlay = null
+                }
+            })
+            start()
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
