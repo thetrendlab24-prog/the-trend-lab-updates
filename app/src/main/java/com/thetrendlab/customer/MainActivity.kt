@@ -61,9 +61,34 @@ class MainActivity : Activity() {
             if (intent?.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
             if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) != downloadId) return
             val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val query = DownloadManager.Query().setFilterById(downloadId)
+            val cursor = manager.query(query)
+            var status = DownloadManager.STATUS_FAILED
+            var reason = 0
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    status = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                }
+            }
+            if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                val detail = when (reason) {
+                    DownloadManager.ERROR_INSUFFICIENT_SPACE -> "Not enough storage space."
+                    DownloadManager.ERROR_DEVICE_NOT_FOUND -> "Download storage is unavailable."
+                    DownloadManager.ERROR_CANNOT_RESUME -> "Download interrupted. Please retry."
+                    DownloadManager.ERROR_HTTP_DATA_ERROR -> "Network data error. Please retry."
+                    DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "The download server rejected the request."
+                    DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "The download server redirected too many times."
+                    DownloadManager.ERROR_FILE_ERROR -> "Could not save the APK file."
+                    DownloadManager.ERROR_UNKNOWN -> "Unknown download error."
+                    else -> "Download failed (code $reason)."
+                }
+                Toast.makeText(this@MainActivity, detail, Toast.LENGTH_LONG).show()
+                return
+            }
             pendingInstallUri = manager.getUriForDownloadedFile(downloadId)
             if (pendingInstallUri == null) {
-                Toast.makeText(this@MainActivity, "Update download failed. Please try again.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, "Download finished, but Android could not open the APK file.", Toast.LENGTH_LONG).show()
                 return
             }
             if (!verifyDownloadedApk(pendingInstallUri!!, pendingExpectedSha256)) {
@@ -165,7 +190,7 @@ class MainActivity : Activity() {
 
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
             @Suppress("DEPRECATION")
             registerReceiver(downloadReceiver, filter)
