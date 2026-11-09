@@ -23,7 +23,10 @@ android {
         }
     }
 
-    dependencies { implementation("androidx.core:core-ktx:1.15.0") }
+    dependencies {
+        implementation("androidx.core:core-ktx:1.15.0")
+        implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -36,8 +39,8 @@ android {
         applicationId = "com.thetrendlab.customer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 25
-        versionName = "2.11.2"
+        versionCode = 26
+        versionName = "2.11.3"
     }
 
     buildTypes {
