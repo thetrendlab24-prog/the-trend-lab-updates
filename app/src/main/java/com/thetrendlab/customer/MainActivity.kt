@@ -21,6 +21,7 @@ import android.provider.Settings
 import android.view.WindowInsets
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -177,7 +178,7 @@ class MainActivity : Activity() {
                 if (newProgress >= 100) swipeRefresh.isRefreshing = false
             }
         }
-        swipeRefresh.addView(webView, SwipeRefreshLayout.LayoutParams(-1, -1))
+        swipeRefresh.addView(webView, ViewGroup.LayoutParams(-1, -1))
         swipeRefresh.setOnRefreshListener { webView.reload() }
         root.addView(swipeRefresh, FrameLayout.LayoutParams(-1, -1))
         pageProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
