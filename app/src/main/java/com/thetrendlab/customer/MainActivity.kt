@@ -627,13 +627,8 @@ class MainActivity : Activity() {
             Toast.makeText(this, "The update download link is invalid.", Toast.LENGTH_LONG).show()
             return
         }
-        // Do not request package-install privileges or silently stage APK installation.
-        // Open the official GitHub release in the browser; the user downloads and installs it manually.
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, parsed))
-        } catch (_: Exception) {
-            Toast.makeText(this, "No browser is available to download the update.", Toast.LENGTH_LONG).show()
-        }
+        // Download the verified APK inside the app; do not redirect the user to GitHub/browser.
+        enqueueUpdateDownload(parsed.toString(), expectedSha256)
     }
 
     private fun enqueueUpdateDownload(apkUrl: String, expectedSha256: String) {
