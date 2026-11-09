@@ -33,6 +33,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import android.widget.ProgressBar
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -48,6 +50,8 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var pageProgress: ProgressBar
     private var downloadPoller: Runnable? = null
     private var progressDialog: ProgressDialog? = null
     private val updatePrefs by lazy { getSharedPreferences("ttl_update", Context.MODE_PRIVATE) }
@@ -68,6 +72,10 @@ class MainActivity : Activity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val root = FrameLayout(this)
+        swipeRefresh = SwipeRefreshLayout(this).apply {
+            setColorSchemeColors(Color.rgb(184, 145, 65), Color.rgb(65, 35, 78))
+            setProgressBackgroundColorSchemeColor(Color.WHITE)
+        }
         webView = WebView(this)
         webView.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -108,6 +116,8 @@ class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                pageProgress.visibility = View.GONE
+                swipeRefresh.isRefreshing = false
                 // APK-only: hide header shortcuts duplicated by the persistent bottom navigation.
                 // This is injected into this WebView only; the public website remains unchanged.
                 val apkHeaderCleanup = """
@@ -159,8 +169,25 @@ class MainActivity : Activity() {
             }
         }
         webView.addJavascriptInterface(UpdateBridge(), "Android")
-        webView.webChromeClient = WebChromeClient()
-        root.addView(webView)
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                pageProgress.progress = newProgress
+                pageProgress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+                if (newProgress >= 100) swipeRefresh.isRefreshing = false
+            }
+        }
+        swipeRefresh.addView(webView, SwipeRefreshLayout.LayoutParams(-1, -1))
+        swipeRefresh.setOnRefreshListener { webView.reload() }
+        root.addView(swipeRefresh, FrameLayout.LayoutParams(-1, -1))
+        pageProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(190, 151, 72))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.TRANSPARENT)
+            visibility = View.GONE
+        }
+        root.addView(pageProgress, FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP))
         setContentView(root)
         webView.requestApplyInsets()
         showBrandOpening(root)
