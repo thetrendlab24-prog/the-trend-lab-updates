@@ -55,9 +55,9 @@ jobs:
       - name: Publish versioned Admin APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: admin-v1.0.9
-          name: The Trend Lab Admin v1.0.9
-          body: "Improved Android Storage Access Framework file picker for product photos and CSV imports, plus in-app updates and double-back-to-exit."
+          tag_name: admin-v1.0.10
+          name: The Trend Lab Admin v1.0.10
+          body: "Prevents login-screen flash during saved-session restoration by synchronizing the native splash with page readiness."
           files: admin-app/app/build/outputs/apk/release/app-release.apk
           make_latest: false
       - name: Update in-app update manifest
@@ -69,17 +69,17 @@ jobs:
           import json, os
           path = "admin-app-update.json"
           data = {
-            "versionCode": 8,
-            "versionName": "1.0.7",
+            "versionCode": 11,
+            "versionName": "1.0.10",
             "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.6/app-release.apk",
             "apkSha256": os.environ["APK_SHA256"],
             "forceUpdate": False,
-            "releaseNotes": "Fixed in-app update detection with cache-busting, HTTP status validation, and visible update-check errors; includes 2-second animated splash."
+            "releaseNotes": "Improved startup splash synchronization to prevent saved-session login flash."
           }
           with open(path, "w") as f: json.dump(data, f, indent=2); f.write("\n")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add admin-app-update.json
-          git commit -m "Publish Admin v1.0.6 in-app update manifest"
+          git commit -m "Publish Admin v1.0.10 in-app update manifest"
           git push
