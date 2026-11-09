@@ -1,8 +1,8 @@
 {
-  "versionCode": 35,
-  "versionName": "2.12.2",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/customer-v2.12.2/app-release.apk",
-  "apkSha256": "9b1b54e803dbf7392776e0be4126fa9177dd3b583709857590036fd3187d271b",
-  "releaseNotes": "The Trend Lab Customer App v2.12.2 is available.",
+  "versionCode": 36,
+  "versionName": "2.12.3",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/customer-v2.12.3/app-release.apk",
+  "apkSha256": "259a53f55ba38bc70b040653b09ee46b6fbef09c67496d337387bb9d126268e6",
+  "releaseNotes": "The Trend Lab Customer App v2.12.3 is available.",
   "forceUpdate": false
 }
