@@ -44,8 +44,8 @@ jobs:
       - name: Publish separate Billing APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: billing-v1.0.0
-          name: The Trend Lab Billing v1.0.0
-          body: "Separate Android billing counter app. Opens the deployed non-GST POS billing screen."
+          tag_name: billing-v1.0.1
+          name: The Trend Lab Billing v1.0.1
+          body: "Adds direct Bluetooth ESC/POS printing for paired 58mm thermal printers; 80mm/A4 retain Android print dialog."
           files: billing-app/app/build/outputs/apk/release/app-release.apk
           make_latest: false
