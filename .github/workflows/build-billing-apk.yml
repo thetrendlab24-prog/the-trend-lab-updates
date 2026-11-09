@@ -44,8 +44,8 @@ jobs:
       - name: Publish separate Billing APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: billing-v1.0.1
-          name: The Trend Lab Billing v1.0.1
-          body: "Adds direct Bluetooth ESC/POS printing for paired 58mm thermal printers; 80mm/A4 retain Android print dialog."
+          tag_name: billing-v1.0.2
+          name: The Trend Lab Billing v1.0.2
+          body: "Fixes WebView print interception so 58mm receipts go directly to paired Bluetooth ESC/POS printers; 80mm/A4 retain Android print dialog."
           files: billing-app/app/build/outputs/apk/release/app-release.apk
           make_latest: false
