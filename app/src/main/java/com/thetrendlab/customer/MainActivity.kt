@@ -131,6 +131,22 @@ class MainActivity : Activity() {
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(apkHeaderCleanup, null)
+
+                val versionSync = """
+                    (function() {
+                      try {
+                        var version = Android.getAppVersion();
+                        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        var node;
+                        while ((node = walker.nextNode())) {
+                          if (/Customer\\s+app\\s+v1\\.0/i.test(node.nodeValue || '')) {
+                            node.nodeValue = node.nodeValue.replace(/Customer\\s+app\\s+v1\\.0/ig, 'Customer app v' + version);
+                          }
+                        }
+                      } catch (e) {}
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(versionSync, null)
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -385,6 +401,14 @@ class MainActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private inner class UpdateBridge {
+        @JavascriptInterface
+        fun getAppVersion(): String {
+            return try {
+                val info = packageManager.getPackageInfo(packageName, 0)
+                info.versionName ?: "Unknown"
+            } catch (_: Exception) { "Unknown" }
+        }
+
         @JavascriptInterface
         fun checkForUpdate() {
             checkForMandatoryUpdate(true)
