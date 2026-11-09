@@ -143,6 +143,20 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(apkHeaderCleanup, null)
 
+                // APK-only category layout override: keep each category on its own full-width row.
+                val categoryShelfLayoutFix = """
+                    (function(){
+                      var css='#productGrid.product-grid-category-mode{display:flex!important;flex-direction:column!important;align-items:stretch!important;grid-template-columns:none!important;width:100%!important}'+
+                      '#productGrid.product-grid-category-mode>.product-category-group{display:block!important;float:none!important;clear:both!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;margin:0 0 32px!important}'+
+                      '#productGrid.product-grid-category-mode .product-category-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%!important}'+
+                      '@media(min-width:900px){#productGrid.product-grid-category-mode .product-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}';
+                      var old=document.getElementById('ttl-apk-category-shelf-layout-fix');if(old)old.remove();
+                      var st=document.createElement('style');st.id='ttl-apk-category-shelf-layout-fix';st.textContent=css;(document.head||document.documentElement).appendChild(st);
+                      var grid=document.getElementById('productGrid');if(grid){grid.style.setProperty('display','flex','important');grid.style.setProperty('flex-direction','column','important');grid.style.setProperty('grid-template-columns','none','important');}
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(categoryShelfLayoutFix, null)
+
                 val versionSync = """
                     (function() {
                       try {
