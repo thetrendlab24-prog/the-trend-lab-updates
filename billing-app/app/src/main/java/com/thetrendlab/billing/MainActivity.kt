@@ -60,7 +60,24 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 view?.evaluateJavascript(
-                    "window.print=function(){var r=document.getElementById('receipt');BillingNative.printReceipt(r?(r.innerText||r.textContent):'',document.getElementById('paper')?.value||'58');};",
+                    """
+                    (function(){
+                      function ttlNativePrint(){
+                        var paperEl=document.getElementById('paper') || document.querySelector('[name="paper"],select[id*="paper"],select[name*="paper"]');
+                        var paper=paperEl ? String(paperEl.value || paperEl.options?.[paperEl.selectedIndex]?.text || '58') : '58';
+                        var receipt=document.querySelector('#receipt,#printArea,.print-area,#invoice,.invoice-receipt,.receipt');
+                        var content=receipt ? (receipt.innerText || receipt.textContent || '') : (document.querySelector('#billSummary,.bill-summary,.current-bill')?.innerText || document.body.innerText || '');
+                        BillingNative.printReceipt(content,paper);
+                      }
+                      try { Object.defineProperty(window,'print',{configurable:true,writable:true,value:ttlNativePrint}); }
+                      catch(e){ window.print=ttlNativePrint; }
+                      window.__ttlNativePrintReady=true;
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+                view?.evaluateJavascript(
+                    "if(!window.__ttlPrintGuard){window.__ttlPrintGuard=setInterval(function(){if(!window.__ttlNativePrintReady){window.print=function(){BillingNative.printReceipt(document.querySelector('#receipt,#printArea,.print-area,#invoice,.invoice-receipt,.receipt')?.innerText||document.body.innerText,document.getElementById('paper')?.value||'58');};window.__ttlNativePrintReady=true;}},300);setTimeout(function(){clearInterval(window.__ttlPrintGuard);},10000);}",
                     null
                 )
             }
@@ -76,7 +93,7 @@ class MainActivity : Activity() {
     private inner class BillingBridge {
         @JavascriptInterface
         fun printReceipt(text: String, paper: String) {
-            if (paper == "58") {
+            if (paper.contains("58")) {
                 pendingReceipt = text
                 runOnUiThread { ensureBluetoothPermissionThenChoose() }
             } else {
