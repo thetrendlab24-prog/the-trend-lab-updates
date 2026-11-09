@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "1.0.10",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.10/app-release.apk",
-  "apkSha256": "e3571c79a0061c01f4eff24927ad21da58b74f7bd2c92b8e8baa96d65f2c6f85",
+  "versionCode": 12,
+  "versionName": "1.0.11",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.11/app-release.apk",
+  "apkSha256": "22dbb5c7a8671f676b8b8e07b1c383074a3b576bde1deea21e2f3c922f7defb5",
   "forceUpdate": false,
-  "releaseNotes": "Prevents login-screen flash while the saved admin session is restored."
+  "releaseNotes": "Adds standalone non-GST billing counter access and updates the Admin app version."
 }
