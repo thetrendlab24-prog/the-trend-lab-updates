@@ -34,7 +34,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
-import android.os.Looper
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -192,14 +191,6 @@ class MainActivity : Activity() {
         webView.requestApplyInsets()
         showBrandOpening(root)
         setupConnectivityMonitor(root)
-
-        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(downloadReceiver, filter)
-        }
 
         if (savedInstanceState == null) {
             webView.clearCache(true)
