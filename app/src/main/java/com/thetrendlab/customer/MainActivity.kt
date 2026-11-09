@@ -223,7 +223,7 @@ class MainActivity : Activity() {
                         'women’s clothing':'👚',
                         "women's clothing":'👚'
                       };
-                      function norm(t){return (t||'').replace(/\\s+/g,' ').trim().toLowerCase();}
+                      function norm(t){return (t||'').replace(/\s+/g,' ').trim().toLowerCase();}
                       function apply(){
                         try{
                           Object.keys(iconMap).forEach(function(name){
