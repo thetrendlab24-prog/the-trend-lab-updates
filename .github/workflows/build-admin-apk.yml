@@ -55,9 +55,9 @@ jobs:
       - name: Publish versioned Admin APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: admin-v1.0.10
-          name: The Trend Lab Admin v1.0.10
-          body: "Prevents login-screen flash during saved-session restoration by synchronizing the native splash with page readiness."
+          tag_name: admin-v1.0.11
+          name: The Trend Lab Admin v1.0.11
+          body: "Adds access to the standalone non-GST Billing Counter from the Admin Panel."
           files: admin-app/app/build/outputs/apk/release/app-release.apk
           make_latest: false
       - name: Update in-app update manifest
@@ -69,12 +69,12 @@ jobs:
           import json, os
           path = "admin-app-update.json"
           data = {
-            "versionCode": 11,
-            "versionName": "1.0.10",
-            "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.10/app-release.apk",
+            "versionCode": 12,
+            "versionName": "1.0.11",
+            "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.11/app-release.apk",
             "apkSha256": os.environ["APK_SHA256"],
             "forceUpdate": False,
-            "releaseNotes": "Improved startup splash synchronization to prevent saved-session login flash."
+            "releaseNotes": "Adds standalone non-GST billing counter access and updates the Admin app version."
           }
           with open(path, "w") as f: json.dump(data, f, indent=2); f.write("\n")
           PY
