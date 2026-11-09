@@ -707,7 +707,7 @@ class MainActivity : Activity() {
     }
 
     private fun launchInstallerOrShowButton() {
-        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+        if (false) { // In-app package installation is disabled; updates open the official release page.
             AlertDialog.Builder(this)
                 .setTitle("Allow app installation")
                 .setMessage("Enable ‘Allow from this source’ for The Trend Lab, then return to install the downloaded update.")
@@ -777,7 +777,7 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
+        if (true) { // Do not query canRequestPackageInstalls: permission is intentionally absent.
             val url = pendingDownloadUrl
             if (!url.isNullOrBlank()) {
                 pendingDownloadUrl = null
