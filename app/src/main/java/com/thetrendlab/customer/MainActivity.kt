@@ -5,6 +5,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.DownloadManager
+import android.app.ProgressDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -33,6 +34,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.Looper
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -46,6 +48,9 @@ import java.util.Locale
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var downloadId: Long = -1L
+    private var downloadPoller: Runnable? = null
+    private var progressDialog: ProgressDialog? = null
+    private val updatePrefs by lazy { getSharedPreferences("ttl_update", Context.MODE_PRIVATE) }
     private var pendingInstallUri: Uri? = null
     private var pendingDownloadUrl: String? = null
     private var pendingExpectedSha256: String? = null
@@ -203,6 +208,7 @@ class MainActivity : Activity() {
             webView.restoreState(savedInstanceState)
             webView.post { webView.reload() }
         }
+        restorePendingUpdateDownload()
         checkForMandatoryUpdate(false)
     }
 
@@ -510,19 +516,164 @@ class MainActivity : Activity() {
 
     private fun enqueueUpdateDownload(apkUrl: String, expectedSha256: String) {
         try {
+            // Clear any older update download before starting a fresh, tracked request.
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val previousId = updatePrefs.getLong("download_id", -1L)
+            if (previousId > 0) manager.remove(previousId)
+            pendingExpectedSha256 = expectedSha256
             val request = DownloadManager.Request(Uri.parse(apkUrl))
                 .setTitle("The Trend Lab update")
                 .setDescription("Downloading the latest app version")
                 .setMimeType("application/vnd.android.package-archive")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
                 .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "TheTrendLab-update.apk")
-            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            pendingExpectedSha256 = expectedSha256
             downloadId = manager.enqueue(request)
-            Toast.makeText(this, "Update downloading. Installer will open when complete.", Toast.LENGTH_LONG).show()
-        } catch (_: Exception) {
-            Toast.makeText(this, "Could not start update download. Please try again.", Toast.LENGTH_LONG).show()
+            updatePrefs.edit()
+                .putLong("download_id", downloadId)
+                .putString("expected_sha256", expectedSha256)
+                .putBoolean("install_pending", false)
+                .apply()
+            showDownloadProgress()
+            startDownloadPolling()
+            Toast.makeText(this, "Update downloading. Keep the app available until installation opens.", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not start update download: ${e.message ?: "please try again"}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun showDownloadProgress() {
+        if (isFinishing || isDestroyed) return
+        if (progressDialog == null) {
+            progressDialog = ProgressDialog(this).apply {
+                setTitle("The Trend Lab update")
+                setMessage("Preparing download…")
+                setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
+                max = 100
+                setCancelable(false)
+                setButton(ProgressDialog.BUTTON_NEGATIVE, "Cancel") { _, _ ->
+                    val id = updatePrefs.getLong("download_id", -1L)
+                    if (id > 0) (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).remove(id)
+                    updatePrefs.edit().remove("download_id").remove("expected_sha256").apply()
+                    stopDownloadPolling()
+                    progressDialog = null
+                }
+            }
+        }
+        if (!progressDialog!!.isShowing) progressDialog!!.show()
+    }
+
+    private fun restorePendingUpdateDownload() {
+        val id = updatePrefs.getLong("download_id", -1L)
+        if (id <= 0) return
+        downloadId = id
+        pendingExpectedSha256 = updatePrefs.getString("expected_sha256", null)
+        if (updatePrefs.getBoolean("install_pending", false)) {
+            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            pendingInstallUri = manager.getUriForDownloadedFile(id)
+            if (pendingInstallUri != null) showInstallReadyDialog()
+            return
+        }
+        showDownloadProgress()
+        startDownloadPolling()
+    }
+
+    private fun startDownloadPolling() {
+        stopDownloadPolling()
+        val id = downloadId
+        val task = object : Runnable {
+            override fun run() {
+                if (isFinishing || isDestroyed || id <= 0 || id != downloadId) return
+                val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+                val cursor = manager.query(DownloadManager.Query().setFilterById(id))
+                var status = -1
+                var reason = 0
+                var downloaded = 0L
+                var total = -1L
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        status = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                        downloaded = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                        total = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                    }
+                }
+                if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                    stopDownloadPolling()
+                    progressDialog?.dismiss()
+                    progressDialog = null
+                    val uri = manager.getUriForDownloadedFile(id)
+                    if (uri == null || !verifyDownloadedApk(uri, pendingExpectedSha256 ?: updatePrefs.getString("expected_sha256", null))) {
+                        manager.remove(id)
+                        updatePrefs.edit().remove("download_id").remove("expected_sha256").apply()
+                        Toast.makeText(this@MainActivity, "Update download verification failed. Please retry.", Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    pendingInstallUri = uri
+                    updatePrefs.edit().putBoolean("install_pending", true).apply()
+                    launchInstallerOrShowButton()
+                    return
+                }
+                if (status == DownloadManager.STATUS_FAILED) {
+                    stopDownloadPolling()
+                    progressDialog?.dismiss()
+                    progressDialog = null
+                    val detail = when (reason) {
+                        DownloadManager.ERROR_INSUFFICIENT_SPACE -> "Not enough storage space."
+                        DownloadManager.ERROR_DEVICE_NOT_FOUND -> "Download storage is unavailable."
+                        DownloadManager.ERROR_CANNOT_RESUME -> "Download interrupted. Please retry."
+                        DownloadManager.ERROR_HTTP_DATA_ERROR -> "Network data error. Please retry."
+                        DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "The download server rejected the request."
+                        DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "The download server redirected too many times."
+                        DownloadManager.ERROR_FILE_ERROR -> "Could not save the APK file."
+                        else -> "Download failed (code $reason). Please retry."
+                    }
+                    updatePrefs.edit().remove("download_id").remove("expected_sha256").apply()
+                    Toast.makeText(this@MainActivity, detail, Toast.LENGTH_LONG).show()
+                    return
+                }
+                if (total > 0) {
+                    val percent = ((downloaded * 100) / total).toInt().coerceIn(0, 100)
+                    progressDialog?.progress = percent
+                    progressDialog?.setMessage("Downloaded ${downloaded / 1024} KB of ${total / 1024} KB")
+                } else {
+                    progressDialog?.setMessage("Connecting to update server…")
+                }
+                Handler(Looper.getMainLooper()).postDelayed(this, 700)
+            }
+        }
+        downloadPoller = task
+        Handler(Looper.getMainLooper()).post(task)
+    }
+
+    private fun stopDownloadPolling() {
+        downloadPoller?.let { Handler(Looper.getMainLooper()).removeCallbacks(it) }
+        downloadPoller = null
+    }
+
+    private fun launchInstallerOrShowButton() {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            AlertDialog.Builder(this)
+                .setTitle("Allow app installation")
+                .setMessage("Enable ‘Allow from this source’ for The Trend Lab, then return to install the downloaded update.")
+                .setPositiveButton("Open Settings") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                }
+                .setNegativeButton("Later", null)
+                .show()
+            return
+        }
+        installDownloadedUpdate()
+    }
+
+    private fun showInstallReadyDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Update downloaded")
+            .setMessage("The update is downloaded and verified. Tap Install Update to open Android's installer.")
+            .setPositiveButton("Install Update") { _, _ -> launchInstallerOrShowButton() }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
     private fun verifyDownloadedApk(uri: Uri, expected: String?): Boolean {
@@ -542,27 +693,25 @@ class MainActivity : Activity() {
     }
 
     private fun installDownloadedUpdate() {
-        val uri = pendingInstallUri ?: return
+        val uri = pendingInstallUri ?: run {
+            val id = updatePrefs.getLong("download_id", -1L)
+            if (id > 0) (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).getUriForDownloadedFile(id) else null
+        } ?: return
         try {
-            // Launch Android's package installer automatically as soon as the verified APK download completes.
-            // Android still requires the user to confirm installation for ordinary sideloaded apps.
             val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
-            // Clear before launch so returning from the installer cannot trigger an endless relaunch loop.
-            pendingInstallUri = null
             startActivityForResult(install, 901)
         } catch (_: Exception) {
             try {
-                val fallback = Intent(Intent.ACTION_VIEW).apply {
+                startActivity(Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, "application/vnd.android.package-archive")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                startActivity(fallback)
+                })
             } catch (_: Exception) {
-                Toast.makeText(this, "Update downloaded and verified. Tap the update notification to install.", Toast.LENGTH_LONG).show()
+                showInstallReadyDialog()
             }
         }
     }
@@ -580,6 +729,7 @@ class MainActivity : Activity() {
             }
         }
         if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
+            if (pendingInstallUri != null) launchInstallerOrShowButton()
             val url = pendingDownloadUrl
             if (!url.isNullOrBlank()) {
                 pendingDownloadUrl = null
@@ -618,6 +768,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        stopDownloadPolling()
         try { unregisterReceiver(downloadReceiver) } catch (_: Exception) { }
         try { networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) } } catch (_: Exception) { }
         if (::webView.isInitialized) {
