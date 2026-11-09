@@ -1,8 +1,8 @@
 {
   "versionCode": 11,
   "versionName": "1.0.10",
-  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.6/app-release.apk",
+  "apkUrl": "https://github.com/thetrendlab24-prog/the-trend-lab-updates/releases/download/admin-v1.0.10/app-release.apk",
   "apkSha256": "e3571c79a0061c01f4eff24927ad21da58b74f7bd2c92b8e8baa96d65f2c6f85",
   "forceUpdate": false,
-  "releaseNotes": "Improved startup splash synchronization to prevent saved-session login flash."
+  "releaseNotes": "Prevents login-screen flash while the saved admin session is restored."
 }
