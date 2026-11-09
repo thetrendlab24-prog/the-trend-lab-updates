@@ -203,8 +203,6 @@ class MainActivity : Activity() {
                 // category-specific symbols. Match the visible category title, not card order.
                 val categorySpecificIcons = """
                     (function(){
-                      if(window.__ttlCategorySpecificIconsInstalled)return;
-                      window.__ttlCategorySpecificIconsInstalled=true;
                       var iconMap={
                         'accessories & utility':'👜',
                         'beauty & personal care':'💄',
@@ -223,40 +221,33 @@ class MainActivity : Activity() {
                         'women’s clothing':'👚',
                         "women's clothing":'👚'
                       };
-                      function norm(t){return (t||'').replace(/\s+/g,' ').trim().toLowerCase();}
+                      function norm(t){return (t||'').normalize('NFKC').replace(/[’]/g,"'").replace(/[–—]/g,'-').replace(/\\s+/g,' ').trim().toLowerCase();}
                       function apply(){
                         try{
-                          Object.keys(iconMap).forEach(function(name){
-                            var labels=Array.from(document.querySelectorAll('body *')).filter(function(el){
-                              if(el.children.length>2)return false;
-                              return norm(el.innerText||el.textContent)===name;
-                            });
-                            labels.forEach(function(label){
-                              var node=label, target=null, best=Infinity;
-                              for(var depth=0;node&&depth<9;depth++,node=node.parentElement){
-                                var r=node.getBoundingClientRect();
-                                var svg=node.querySelector('svg');
-                                if(svg&&r.width>=90&&r.height>=90&&r.width<=320&&r.height<=360){
-                                  var area=r.width*r.height;
-                                  if(area<best){best=area;target=node;}
-                                }
-                              }
-                              if(!target||target.querySelector('[data-ttl-category-icon="'+name+'"]'))return;
-                              var svg=target.querySelector('svg');
-                              if(!svg)return;
-                              var replacement=document.createElement('span');
-                              replacement.setAttribute('data-ttl-category-icon',name);
-                              replacement.textContent=iconMap[name];
-                              replacement.style.cssText='display:inline-flex;align-items:center;justify-content:center;font-size:34px;line-height:1;width:1.25em;height:1.25em;filter:drop-shadow(0 2px 5px rgba(91,35,125,.18));';
-                              svg.replaceWith(replacement);
-                            });
+                          document.querySelectorAll('.category-tile').forEach(function(tile){
+                            var title=tile.querySelector('strong');
+                            var icon=tile.querySelector('.category-emoji');
+                            if(!title||!icon)return;
+                            var key=norm(title.textContent);
+                            var glyph=iconMap[key];
+                            if(!glyph)return;
+                            if(icon.getAttribute('data-ttl-icon-key')===key&&icon.textContent===glyph)return;
+                            icon.setAttribute('data-ttl-icon-key',key);
+                            icon.replaceChildren(document.createTextNode(glyph));
+                            icon.style.setProperty('display','inline-flex','important');
+                            icon.style.setProperty('align-items','center','important');
+                            icon.style.setProperty('justify-content','center','important');
+                            icon.style.setProperty('font-size','34px','important');
+                            icon.style.setProperty('line-height','1','important');
                           });
                         }catch(e){console.warn('Category icon enhancement:',e);}
                       }
                       apply();
-                      var observer=new MutationObserver(apply);
-                      observer.observe(document.documentElement,{childList:true,subtree:true});
-                      setTimeout(apply,500);setTimeout(apply,1500);setTimeout(apply,3500);
+                      if(!window.__ttlCategoryIconObserver){
+                        window.__ttlCategoryIconObserver=new MutationObserver(apply);
+                        window.__ttlCategoryIconObserver.observe(document.documentElement,{childList:true,subtree:true});
+                      }
+                      setTimeout(apply,250);setTimeout(apply,1000);setTimeout(apply,2500);
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(categorySpecificIcons, null)
@@ -764,12 +755,16 @@ class MainActivity : Activity() {
     }
 
     private fun launchInstallerOrShowButton() {
-        if (false) { // In-app package installation is disabled; updates open the official release page.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
             AlertDialog.Builder(this)
-                .setTitle("Allow app installation")
-                .setMessage("Enable ‘Allow from this source’ for The Trend Lab, then return to install the downloaded update.")
+                .setTitle("Allow update installation")
+                .setMessage("Enable ‘Allow from this source’ for The Trend Lab. Return here and the verified update installer will open automatically.")
                 .setPositiveButton("Open Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                    try {
+                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "Open Settings > Install unknown apps > The Trend Lab and allow it.", Toast.LENGTH_LONG).show()
+                    }
                 }
                 .setNegativeButton("Later", null)
                 .show()
@@ -834,13 +829,23 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if (true) { // Do not query canRequestPackageInstalls: permission is intentionally absent.
-            val url = pendingDownloadUrl
-            if (!url.isNullOrBlank()) {
-                pendingDownloadUrl = null
-                enqueueUpdateDownload(url, pendingExpectedSha256 ?: "")
-                pendingExpectedSha256 = null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()) {
+            if (updatePrefs.getBoolean("install_pending", false)) {
+                val path = updatePrefs.getString("apk_path", null)
+                val expected = updatePrefs.getString("expected_sha256", null)
+                val file = path?.let { File(it) }
+                if (file != null && file.exists() && verifyDownloadedApk(Uri.fromFile(file), expected)) {
+                    downloadedApkFile = file
+                    updatePrefs.edit().putBoolean("install_pending", false).apply()
+                    Handler(Looper.getMainLooper()).postDelayed({ launchInstallerOrShowButton() }, 350)
+                }
             }
+        }
+        val url = pendingDownloadUrl
+        if (!url.isNullOrBlank()) {
+            pendingDownloadUrl = null
+            enqueueUpdateDownload(url, pendingExpectedSha256 ?: "")
+            pendingExpectedSha256 = null
         }
     }
 
