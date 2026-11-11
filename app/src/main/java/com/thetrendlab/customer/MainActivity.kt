@@ -42,6 +42,7 @@ import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -70,6 +71,16 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep the WebView inside the real Android system-bar safe area.
+        // Android 15 (targetSdk 35) enforces edge-to-edge by default; opting out
+        // prevents status/navigation bars from drawing over fixed web content.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = Color.WHITE
+        window.navigationBarColor = Color.WHITE
+        if (Build.VERSION.SDK_INT >= 26) {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+                View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val root = FrameLayout(this)
@@ -83,20 +94,8 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT
         )
         webView.setBackgroundColor(android.graphics.Color.WHITE)
-        webView.setOnApplyWindowInsetsListener { view, insets ->
-            val topInset: Int
-            val bottomInset: Int
-            if (Build.VERSION.SDK_INT >= 30) {
-                val bars = insets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                topInset = bars.top
-                bottomInset = bars.bottom
-            } else {
-                topInset = insets.systemWindowInsetTop
-                bottomInset = insets.systemWindowInsetBottom
-            }
-            view.setPadding(0, topInset, 0, bottomInset)
-            insets
-        }
+        // Decor fitting above keeps this WebView below the status bar and above
+        // the navigation/gesture area. Do not add a second inset as WebView padding.
         webView.settings.apply {
             javaScriptEnabled = true
             allowFileAccess = false
