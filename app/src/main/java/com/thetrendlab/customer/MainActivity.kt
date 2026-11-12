@@ -200,96 +200,94 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(categorySpecificIcons, null)
 
-                // APK-only wide campaign banner correction. The Android app hosts the live
-                // storefront in its own WebView, so apply this only inside the APK.
-                // Replace legacy portrait hero assets with the verified horizontal campaign assets.
-                val apkWideBannerFix = """
-                    (function() {
-                      var base = 'https://the-trend-lab.thetrendlab24.workers.dev/';
-                      var map = {
-                        'hero-kurti-promo.jpg': 'tl-banner-kurti-v376.jpg',
-                        'hero-menswear-full.jpg': 'tl-banner-menswear-v376.jpg',
-                        'hero-kidswear-full.jpg': 'tl-banner-kids-v376.jpg',
-                        'hero-saree-full.jpg': 'tl-banner-saree-v376.jpg',
-                        'hero-cosmetics-full.jpg': 'tl-banner-cosmetics-v376.jpg'
-                      };
-                      function replacement(value) {
-                        if (!value) return null;
-                        for (var key in map) {
-                          if (Object.prototype.hasOwnProperty.call(map, key) && value.indexOf(key) !== -1) {
-                            return base + map[key] + '?apk_banner=2125';
+                // APK-only five-banner carousel. Uses the five verified 1800x506 assets
+                // included in the v378 Cloudflare deployment ZIP. Targets the actual hero
+                // container directly rather than guessing the currently-rendered image filename.
+                val apkFiveBannerCarousel = """
+                    (function(w,d){
+                      var slides=[
+                        {src:'/tl-banner-kurti-v376.jpg?apk_banner=2126',alt:'The Trend Lab exclusive kurti collection'},
+                        {src:'/tl-banner-menswear-v376.jpg?apk_banner=2126',alt:'The Trend Lab stylish menswear collection'},
+                        {src:'/tl-banner-kids-v376.jpg?apk_banner=2126',alt:'The Trend Lab kids wear collection'},
+                        {src:'/tl-banner-saree-v376.jpg?apk_banner=2126',alt:'The Trend Lab elegant saree collection'},
+                        {src:'/tl-banner-cosmetics-v376.jpg?apk_banner=2126',alt:'The Trend Lab cosmetics and beauty collection'}
+                      ];
+                      function init(){
+                        var hero=d.querySelector('.shop-hero.shop-hero-artwork-mode')||d.querySelector('.shop-hero');
+                        var visual=d.getElementById('shopHeroVisual')||(hero&&hero.querySelector('.shop-hero-visual'));
+                        if(!hero||!visual)return false;
+                        var img=visual.querySelector('img');
+                        if(!img){img=d.createElement('img');visual.appendChild(img);}
+                        hero.style.setProperty('height','auto','important');
+                        hero.style.setProperty('min-height','0','important');
+                        hero.style.setProperty('padding','0','important');
+                        hero.style.setProperty('overflow','hidden','important');
+                        visual.style.setProperty('display','block','important');
+                        visual.style.setProperty('position','relative','important');
+                        visual.style.setProperty('inset','auto','important');
+                        visual.style.setProperty('width','100%','important');
+                        visual.style.setProperty('height','auto','important');
+                        visual.style.setProperty('min-height','0','important');
+                        visual.style.setProperty('padding','0','important');
+                        visual.style.setProperty('margin','0','important');
+                        visual.style.setProperty('overflow','hidden','important');
+                        img.style.setProperty('display','block','important');
+                        img.style.setProperty('position','static','important');
+                        img.style.setProperty('width','100%','important');
+                        img.style.setProperty('height','auto','important');
+                        img.style.setProperty('max-width','100%','important');
+                        img.style.setProperty('max-height','none','important');
+                        img.style.setProperty('object-fit','contain','important');
+                        img.style.setProperty('object-position','center','important');
+                        var copy=hero.querySelector('.shop-hero-copy');
+                        if(copy)copy.style.setProperty('display','none','important');
+                        var dots=hero.querySelector('.hero-dots');
+                        if(!dots){dots=d.createElement('div');dots.className='hero-dots';hero.appendChild(dots);}
+                        dots.innerHTML='';
+                        dots.style.setProperty('position','absolute','important');
+                        dots.style.setProperty('z-index','50','important');
+                        dots.style.setProperty('left','50%','important');
+                        dots.style.setProperty('bottom','8px','important');
+                        dots.style.setProperty('transform','translateX(-50%)','important');
+                        dots.style.setProperty('display','flex','important');
+                        dots.style.setProperty('gap','8px','important');
+                        var buttons=[],current=0;
+                        function show(n){
+                          current=(n+slides.length)%slides.length;
+                          img.setAttribute('src',slides[current].src);
+                          img.setAttribute('alt',slides[current].alt);
+                          img.removeAttribute('srcset');
+                          img.className='shop-hero-slide-image is-visible';
+                          visual.setAttribute('data-ttl-apk-banner-index',String(current));
+                          for(var k=0;k<buttons.length;k++){
+                            buttons[k].style.setProperty('background',k===current?'#ffffff':'rgba(255,255,255,.5)','important');
+                            buttons[k].style.setProperty('width',k===current?'22px':'9px','important');
                           }
                         }
-                        return null;
-                      }
-                      function fitBanner(node) {
-                        if (!node || node.getAttribute('data-ttl-apk-wide-banner') === '1') return;
-                        node.setAttribute('data-ttl-apk-wide-banner', '1');
-                        var width = node.getBoundingClientRect().width || document.documentElement.clientWidth || 360;
-                        var height = Math.round(width * 506 / 1800);
-                        node.style.setProperty('display', 'block', 'important');
-                        node.style.setProperty('width', '100%', 'important');
-                        node.style.setProperty('height', height + 'px', 'important');
-                        node.style.setProperty('max-height', height + 'px', 'important');
-                        node.style.setProperty('object-fit', 'contain', 'important');
-                        node.style.setProperty('object-position', 'center center', 'important');
-                        var parent = node.parentElement;
-                        if (parent) {
-                          parent.style.setProperty('height', height + 'px', 'important');
-                          parent.style.setProperty('min-height', height + 'px', 'important');
-                          parent.style.setProperty('max-height', height + 'px', 'important');
-                          parent.style.setProperty('overflow', 'hidden', 'important');
+                        for(var i=0;i<slides.length;i++){
+                          var b=d.createElement('button');
+                          b.type='button';b.setAttribute('aria-label','Show banner '+(i+1));
+                          b.style.cssText='border:1px solid rgba(70,35,80,.35);border-radius:20px;padding:0;height:9px;width:9px;min-width:9px;cursor:pointer;';
+                          (function(n,btn){btn.addEventListener('click',function(){show(n);},false);})(i,b);
+                          dots.appendChild(b);buttons.push(b);
                         }
+                        show(0);
+                        if(w.__ttlApkFiveBannerTimer)w.clearInterval(w.__ttlApkFiveBannerTimer);
+                        w.__ttlApkFiveBannerTimer=w.setInterval(function(){show(current+1);},5000);
+                        return true;
                       }
-                      function apply() {
-                        try {
-                          var imgs = document.querySelectorAll('img');
-                          for (var i = 0; i < imgs.length; i++) {
-                            var img = imgs[i];
-                            var next = replacement(img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || '');
-                            if (next && img.getAttribute('src') !== next) {
-                              img.setAttribute('src', next);
-                              img.removeAttribute('srcset');
-                              img.removeAttribute('data-src');
-                              img.removeAttribute('data-original');
-                              img.setAttribute('data-ttl-apk-wide-banner', '0');
-                            }
-                            if (img.getAttribute('src') && img.getAttribute('src').indexOf('tl-banner-') !== -1) fitBanner(img);
-                          }
-                          var all = document.querySelectorAll('[style*="background"], [data-bg], [data-background]');
-                          for (var j = 0; j < all.length; j++) {
-                            var el = all[j];
-                            var bg = el.style.backgroundImage || el.getAttribute('data-bg') || el.getAttribute('data-background') || '';
-                            var bgNext = replacement(bg);
-                            if (bgNext) {
-                              el.style.setProperty('background-image', 'url("' + bgNext + '")', 'important');
-                              el.style.setProperty('background-size', 'contain', 'important');
-                              el.style.setProperty('background-position', 'center center', 'important');
-                              el.style.setProperty('background-repeat', 'no-repeat', 'important');
-                              var w = el.getBoundingClientRect().width || document.documentElement.clientWidth || 360;
-                              var h = Math.round(w * 506 / 1800);
-                              el.style.setProperty('height', h + 'px', 'important');
-                              el.style.setProperty('min-height', h + 'px', 'important');
-                              el.style.setProperty('max-height', h + 'px', 'important');
-                            }
-                          }
-                        } catch (e) { console.log('APK banner fix:', e); }
-                      }
-                      apply();
-                      if (!window.__ttlApkWideBannerObserver) {
-                        window.__ttlApkWideBannerObserver = new MutationObserver(function() { apply(); });
-                        window.__ttlApkWideBannerObserver.observe(document.documentElement, {
-                          childList: true, subtree: true, attributes: true,
-                          attributeFilter: ['src', 'srcset', 'style', 'data-src', 'data-bg', 'data-background']
+                      function run(){if(!init())w.setTimeout(run,700);}
+                      run();
+                      if(!w.__ttlApkFiveBannerObserver){
+                        w.__ttlApkFiveBannerObserver=new MutationObserver(function(){
+                          var v=d.getElementById('shopHeroVisual');
+                          if(v&&!v.querySelector('img'))run();
                         });
+                        w.__ttlApkFiveBannerObserver.observe(d.documentElement,{childList:true,subtree:true});
                       }
-                      setTimeout(apply, 250);
-                      setTimeout(apply, 900);
-                      setTimeout(apply, 2200);
-                      window.addEventListener('resize', apply);
-                    })();
+                    })(window,document);
                 """.trimIndent()
-                view?.evaluateJavascript(apkWideBannerFix, null)
+                view?.evaluateJavascript(apkFiveBannerCarousel, null)
 
 
                 val versionSync = """
