@@ -200,9 +200,9 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(categorySpecificIcons, null)
 
-                // APK-only five-banner carousel with explicit preload and load-confirmed switching.
-                // Uses five distinct verified assets; failed assets are logged rather than silently
-                // leaving the previous slide visible.
+                // APK-only five-banner carousel. Switch the live image directly on every
+                // dot/timer event; do not gate navigation on preload callbacks (WebView can
+                // delay those callbacks and otherwise leave every dot stuck on slide one).
                 val apkFiveBannerCarousel = """
                     (function(w,d){
                       var root=w.location.origin;
@@ -213,7 +213,7 @@ class MainActivity : Activity() {
                         ['tl-banner-saree-v376.jpg','The Trend Lab elegant saree collection'],
                         ['tl-banner-cosmetics-v376.jpg','The Trend Lab cosmetics and beauty collection']
                       ];
-                      var slides=files.map(function(x,i){return {src:root+'/'+x[0]+'?apk_carousel=2127_'+i,alt:x[1]};});
+                      var slides=files.map(function(x,i){return {src:root+'/'+x[0]+'?apk_carousel=2128_'+i,alt:x[1]};});
                       function init(){
                         var hero=d.querySelector('.shop-hero.shop-hero-artwork-mode')||d.querySelector('.shop-hero');
                         var visual=d.getElementById('shopHeroVisual')||(hero&&hero.querySelector('.shop-hero-visual'));
@@ -253,7 +253,7 @@ class MainActivity : Activity() {
                         dots.style.setProperty('transform','translateX(-50%)','important');
                         dots.style.setProperty('display','flex','important');
                         dots.style.setProperty('gap','8px','important');
-                        var buttons=[],current=0,ready=[],busy=false;
+                        var buttons=[],current=0;
                         function paint(){
                           for(var k=0;k<buttons.length;k++){
                             buttons[k].style.setProperty('background',k===current?'#ffffff':'rgba(255,255,255,.5)','important');
@@ -261,32 +261,25 @@ class MainActivity : Activity() {
                           }
                         }
                         function show(n){
-                          if(busy)return;
-                          var target=(n+slides.length)%slides.length;
-                          if(!ready[target]){w.console.warn('APK banner not loaded:',slides[target].src);return;}
-                          current=target;
-                          img.onload=null;img.onerror=null;
-                          img.src=ready[target].src;
-                          img.setAttribute('alt',slides[target].alt);
-                          img.setAttribute('data-ttl-slide',String(target));
+                          current=(n+slides.length)%slides.length;
+                          img.onload=function(){img.setAttribute('data-ttl-slide-loaded',String(current));};
+                          img.onerror=function(){w.console.error('APK carousel image failed to load: '+slides[current].src);};
+                          img.setAttribute('src',slides[current].src);
+                          img.setAttribute('alt',slides[current].alt);
+                          img.setAttribute('data-ttl-slide',String(current));
+                          img.removeAttribute('srcset');
                           paint();
                         }
                         for(var i=0;i<slides.length;i++){
-                          (function(index){
-                            var pre=new Image();
-                            pre.onload=function(){ready[index]=pre;if(index===0&&img.getAttribute('data-ttl-slide')!=='0')show(0);};
-                            pre.onerror=function(){w.console.error('APK banner image failed:',slides[index].src);};
-                            pre.src=slides[index].src;
-                            var b=d.createElement('button');
-                            b.type='button';b.setAttribute('aria-label','Show banner '+(index+1));
-                            b.style.cssText='border:1px solid rgba(70,35,80,.35);border-radius:20px;padding:0;height:9px;width:9px;min-width:9px;cursor:pointer;';
-                            b.addEventListener('click',function(){show(index);},false);
-                            dots.appendChild(b);buttons.push(b);
-                          })(i);
+                          var b=d.createElement('button');
+                          b.type='button';b.setAttribute('aria-label','Show banner '+(i+1));
+                          b.style.cssText='border:1px solid rgba(70,35,80,.35);border-radius:20px;padding:0;height:9px;width:9px;min-width:9px;cursor:pointer;';
+                          (function(n,btn){btn.addEventListener('click',function(){show(n);},false);})(i,b);
+                          dots.appendChild(b);buttons.push(b);
                         }
+                        show(0);
                         if(w.__ttlApkFiveBannerTimer)w.clearInterval(w.__ttlApkFiveBannerTimer);
                         w.__ttlApkFiveBannerTimer=w.setInterval(function(){show(current+1);},5000);
-                        w.__ttlApkFiveBannerReady=ready;
                         return true;
                       }
                       function run(){if(!init())w.setTimeout(run,700);}
