@@ -200,6 +200,98 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(categorySpecificIcons, null)
 
+                // APK-only wide campaign banner correction. The Android app hosts the live
+                // storefront in its own WebView, so apply this only inside the APK.
+                // Replace legacy portrait hero assets with the verified horizontal campaign assets.
+                val apkWideBannerFix = """
+                    (function() {
+                      var base = 'https://the-trend-lab.thetrendlab24.workers.dev/';
+                      var map = {
+                        'hero-kurti-promo.jpg': 'tl-banner-kurti-v376.jpg',
+                        'hero-menswear-full.jpg': 'tl-banner-menswear-v376.jpg',
+                        'hero-kidswear-full.jpg': 'tl-banner-kids-v376.jpg',
+                        'hero-saree-full.jpg': 'tl-banner-saree-v376.jpg',
+                        'hero-cosmetics-full.jpg': 'tl-banner-cosmetics-v376.jpg'
+                      };
+                      function replacement(value) {
+                        if (!value) return null;
+                        for (var key in map) {
+                          if (Object.prototype.hasOwnProperty.call(map, key) && value.indexOf(key) !== -1) {
+                            return base + map[key] + '?apk_banner=2125';
+                          }
+                        }
+                        return null;
+                      }
+                      function fitBanner(node) {
+                        if (!node || node.getAttribute('data-ttl-apk-wide-banner') === '1') return;
+                        node.setAttribute('data-ttl-apk-wide-banner', '1');
+                        var width = node.getBoundingClientRect().width || document.documentElement.clientWidth || 360;
+                        var height = Math.round(width * 506 / 1800);
+                        node.style.setProperty('display', 'block', 'important');
+                        node.style.setProperty('width', '100%', 'important');
+                        node.style.setProperty('height', height + 'px', 'important');
+                        node.style.setProperty('max-height', height + 'px', 'important');
+                        node.style.setProperty('object-fit', 'contain', 'important');
+                        node.style.setProperty('object-position', 'center center', 'important');
+                        var parent = node.parentElement;
+                        if (parent) {
+                          parent.style.setProperty('height', height + 'px', 'important');
+                          parent.style.setProperty('min-height', height + 'px', 'important');
+                          parent.style.setProperty('max-height', height + 'px', 'important');
+                          parent.style.setProperty('overflow', 'hidden', 'important');
+                        }
+                      }
+                      function apply() {
+                        try {
+                          var imgs = document.querySelectorAll('img');
+                          for (var i = 0; i < imgs.length; i++) {
+                            var img = imgs[i];
+                            var next = replacement(img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || '');
+                            if (next && img.getAttribute('src') !== next) {
+                              img.setAttribute('src', next);
+                              img.removeAttribute('srcset');
+                              img.removeAttribute('data-src');
+                              img.removeAttribute('data-original');
+                              img.setAttribute('data-ttl-apk-wide-banner', '0');
+                            }
+                            if (img.getAttribute('src') && img.getAttribute('src').indexOf('tl-banner-') !== -1) fitBanner(img);
+                          }
+                          var all = document.querySelectorAll('[style*="background"], [data-bg], [data-background]');
+                          for (var j = 0; j < all.length; j++) {
+                            var el = all[j];
+                            var bg = el.style.backgroundImage || el.getAttribute('data-bg') || el.getAttribute('data-background') || '';
+                            var bgNext = replacement(bg);
+                            if (bgNext) {
+                              el.style.setProperty('background-image', 'url("' + bgNext + '")', 'important');
+                              el.style.setProperty('background-size', 'contain', 'important');
+                              el.style.setProperty('background-position', 'center center', 'important');
+                              el.style.setProperty('background-repeat', 'no-repeat', 'important');
+                              var w = el.getBoundingClientRect().width || document.documentElement.clientWidth || 360;
+                              var h = Math.round(w * 506 / 1800);
+                              el.style.setProperty('height', h + 'px', 'important');
+                              el.style.setProperty('min-height', h + 'px', 'important');
+                              el.style.setProperty('max-height', h + 'px', 'important');
+                            }
+                          }
+                        } catch (e) { console.log('APK banner fix:', e); }
+                      }
+                      apply();
+                      if (!window.__ttlApkWideBannerObserver) {
+                        window.__ttlApkWideBannerObserver = new MutationObserver(function() { apply(); });
+                        window.__ttlApkWideBannerObserver.observe(document.documentElement, {
+                          childList: true, subtree: true, attributes: true,
+                          attributeFilter: ['src', 'srcset', 'style', 'data-src', 'data-bg', 'data-background']
+                        });
+                      }
+                      setTimeout(apply, 250);
+                      setTimeout(apply, 900);
+                      setTimeout(apply, 2200);
+                      window.addEventListener('resize', apply);
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(apkWideBannerFix, null)
+
+
                 val versionSync = """
                     (function() {
                       try {
