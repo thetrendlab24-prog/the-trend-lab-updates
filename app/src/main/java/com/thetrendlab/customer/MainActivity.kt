@@ -200,93 +200,10 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(categorySpecificIcons, null)
 
-                // APK-only five-banner carousel. Switch the live image directly on every
-                // dot/timer event; do not gate navigation on preload callbacks (WebView can
-                // delay those callbacks and otherwise leave every dot stuck on slide one).
-                val apkFiveBannerCarousel = """
-                    (function(w,d){
-                      var root=w.location.origin;
-                      var files=[
-                        ['tl-banner-kurti-v376.jpg','The Trend Lab exclusive kurti collection'],
-                        ['tl-banner-menswear-v376.jpg','The Trend Lab stylish menswear collection'],
-                        ['tl-banner-kids-v376.jpg','The Trend Lab kids wear collection'],
-                        ['tl-banner-saree-v376.jpg','The Trend Lab elegant saree collection'],
-                        ['tl-banner-cosmetics-v376.jpg','The Trend Lab cosmetics and beauty collection']
-                      ];
-                      var slides=files.map(function(x,i){return {src:root+'/'+x[0]+'?apk_carousel=2128_'+i,alt:x[1]};});
-                      function init(){
-                        var hero=d.querySelector('.shop-hero.shop-hero-artwork-mode')||d.querySelector('.shop-hero');
-                        var visual=d.getElementById('shopHeroVisual')||(hero&&hero.querySelector('.shop-hero-visual'));
-                        if(!hero||!visual)return false;
-                        var img=visual.querySelector('img');
-                        if(!img){img=d.createElement('img');visual.appendChild(img);}
-                        hero.style.setProperty('height','auto','important');
-                        hero.style.setProperty('min-height','0','important');
-                        hero.style.setProperty('padding','0','important');
-                        hero.style.setProperty('overflow','hidden','important');
-                        visual.style.setProperty('display','block','important');
-                        visual.style.setProperty('position','relative','important');
-                        visual.style.setProperty('inset','auto','important');
-                        visual.style.setProperty('width','100%','important');
-                        visual.style.setProperty('height','auto','important');
-                        visual.style.setProperty('min-height','0','important');
-                        visual.style.setProperty('padding','0','important');
-                        visual.style.setProperty('margin','0','important');
-                        visual.style.setProperty('overflow','hidden','important');
-                        img.style.setProperty('display','block','important');
-                        img.style.setProperty('position','static','important');
-                        img.style.setProperty('width','100%','important');
-                        img.style.setProperty('height','auto','important');
-                        img.style.setProperty('max-width','100%','important');
-                        img.style.setProperty('max-height','none','important');
-                        img.style.setProperty('object-fit','contain','important');
-                        img.style.setProperty('object-position','center','important');
-                        var copy=hero.querySelector('.shop-hero-copy');
-                        if(copy)copy.style.setProperty('display','none','important');
-                        var dots=hero.querySelector('.hero-dots');
-                        if(!dots){dots=d.createElement('div');dots.className='hero-dots';hero.appendChild(dots);}
-                        dots.innerHTML='';
-                        dots.style.setProperty('position','absolute','important');
-                        dots.style.setProperty('z-index','50','important');
-                        dots.style.setProperty('left','50%','important');
-                        dots.style.setProperty('bottom','8px','important');
-                        dots.style.setProperty('transform','translateX(-50%)','important');
-                        dots.style.setProperty('display','flex','important');
-                        dots.style.setProperty('gap','8px','important');
-                        var buttons=[],current=0;
-                        function paint(){
-                          for(var k=0;k<buttons.length;k++){
-                            buttons[k].style.setProperty('background',k===current?'#ffffff':'rgba(255,255,255,.5)','important');
-                            buttons[k].style.setProperty('width',k===current?'22px':'9px','important');
-                          }
-                        }
-                        function show(n){
-                          current=(n+slides.length)%slides.length;
-                          img.onload=function(){img.setAttribute('data-ttl-slide-loaded',String(current));};
-                          img.onerror=function(){w.console.error('APK carousel image failed to load: '+slides[current].src);};
-                          img.setAttribute('src',slides[current].src);
-                          img.setAttribute('alt',slides[current].alt);
-                          img.setAttribute('data-ttl-slide',String(current));
-                          img.removeAttribute('srcset');
-                          paint();
-                        }
-                        for(var i=0;i<slides.length;i++){
-                          var b=d.createElement('button');
-                          b.type='button';b.setAttribute('aria-label','Show banner '+(i+1));
-                          b.style.cssText='border:1px solid rgba(70,35,80,.35);border-radius:20px;padding:0;height:9px;width:9px;min-width:9px;cursor:pointer;';
-                          (function(n,btn){btn.addEventListener('click',function(){show(n);},false);})(i,b);
-                          dots.appendChild(b);buttons.push(b);
-                        }
-                        show(0);
-                        if(w.__ttlApkFiveBannerTimer)w.clearInterval(w.__ttlApkFiveBannerTimer);
-                        w.__ttlApkFiveBannerTimer=w.setInterval(function(){show(current+1);},5000);
-                        return true;
-                      }
-                      function run(){if(!init())w.setTimeout(run,700);}
-                      run();
-                    })(window,document);
-                """.trimIndent()
-                view?.evaluateJavascript(apkFiveBannerCarousel, null)
+                // The customer.html page already owns the five-slide carousel.
+                // Do not create a second WebView timer or replace its dot controls here;
+                // competing timers caused every slide to snap back to the Kurti image.
+
 
 
                 val versionSync = """
