@@ -221,6 +221,60 @@ class MainActivity : Activity() {
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(versionSync, null)
+
+                // APK-only carousel swipe bridge. Android WebView can deliver touch gestures
+                // differently from desktop browsers; translate horizontal finger swipes into
+                // clicks on the website's existing carousel dots (single source of truth).
+                val apkCarouselSwipeBridge = """
+                    (function(){
+                      if(window.__ttlApkSwipeBridgeInstalled)return;
+                      window.__ttlApkSwipeBridgeInstalled=true;
+                      var startX=0,startY=0,tracking=false,ignoreClickUntil=0;
+                      function heroFrom(node){return node&&node.closest?node.closest('.shop-hero'):null;}
+                      function onStart(e){
+                        if(!e.touches||e.touches.length!==1)return;
+                        var t=e.touches[0], hero=heroFrom(e.target);
+                        if(!hero)return;
+                        if(e.target.closest&&e.target.closest('.hero-dots'))return;
+                        startX=t.clientX;startY=t.clientY;tracking=true;
+                        hero.style.setProperty('touch-action','pan-y','important');
+                      }
+                      function onEnd(e){
+                        if(!tracking||!e.changedTouches||!e.changedTouches.length)return;
+                        tracking=false;
+                        var t=e.changedTouches[0],dx=t.clientX-startX,dy=t.clientY-startY;
+                        if(Math.abs(dx)<32||Math.abs(dx)<Math.abs(dy)*1.15)return;
+                        var hero=heroFrom(e.target)||document.querySelector('.shop-hero');
+                        if(!hero)return;
+                        var dots=hero.querySelectorAll('.hero-dots button');
+                        if(!dots.length)return;
+                        var active=hero.querySelector('.hero-dots button.active');
+                        var index=Array.prototype.indexOf.call(dots,active);
+                        if(index<0)index=0;
+                        var next=(index+(dx<0?1:-1)+dots.length)%dots.length;
+                        ignoreClickUntil=Date.now()+500;
+                        dots[next].click();
+                        e.preventDefault();
+                      }
+                      document.addEventListener('touchstart',onStart,{passive:true,capture:true});
+                      document.addEventListener('touchend',onEnd,{passive:false,capture:true});
+                      document.addEventListener('click',function(e){
+                        if(Date.now()<ignoreClickUntil&&heroFrom(e.target)){e.preventDefault();e.stopImmediatePropagation();}
+                      },true);
+                      function apply(){
+                        document.querySelectorAll('.shop-hero').forEach(function(h){
+                          h.style.setProperty('touch-action','pan-y','important');
+                          h.style.setProperty('-webkit-user-select','none','important');
+                        });
+                      }
+                      apply();
+                      if(!window.__ttlApkSwipeObserver){
+                        window.__ttlApkSwipeObserver=new MutationObserver(apply);
+                        window.__ttlApkSwipeObserver.observe(document.documentElement,{childList:true,subtree:true});
+                      }
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(apkCarouselSwipeBridge, null)
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -259,7 +313,7 @@ class MainActivity : Activity() {
 
         if (savedInstanceState == null) {
             webView.clearCache(true)
-            webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html?app_refresh=2100")
+            webView.loadUrl("https://the-trend-lab.thetrendlab24.workers.dev/customer.html?app_refresh=2472")
         } else {
             webView.restoreState(savedInstanceState)
             webView.post { webView.reload() }
