@@ -208,16 +208,27 @@ class MainActivity : Activity() {
 
                 val versionSync = """
                     (function() {
-                      try {
-                        var version = Android.getAppVersion();
-                        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        var node;
-                        while ((node = walker.nextNode())) {
-                          if (/Customer\\s+app\\s+v1\\.0/i.test(node.nodeValue || '')) {
-                            node.nodeValue = node.nodeValue.replace(/Customer\\s+app\\s+v1\\.0/ig, 'Customer app v' + version);
+                      if (window.__ttlVersionSyncInstalled) return;
+                      window.__ttlVersionSyncInstalled = true;
+                      function syncAboutVersion() {
+                        try {
+                          var version = (window.Android && Android.getAppVersion) ? Android.getAppVersion() : '';
+                          if (!version) return;
+                          var walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+                          var node;
+                          while ((node = walker.nextNode())) {
+                            var value = node.nodeValue || '';
+                            if (/Customer\\s+app\\s+v(?:1\\.0|\\d+(?:\\.\\d+){1,2})/i.test(value)) {
+                              node.nodeValue = value.replace(/Customer\\s+app\\s+v(?:1\\.0|\\d+(?:\\.\\d+){1,2})/ig, 'Customer app v' + version);
+                            }
                           }
-                        }
-                      } catch (e) {}
+                        } catch (e) {}
+                      }
+                      syncAboutVersion();
+                      var observer = new MutationObserver(syncAboutVersion);
+                      observer.observe(document.documentElement, {childList:true,subtree:true,characterData:true});
+                      document.addEventListener('click', function(){ setTimeout(syncAboutVersion,80); setTimeout(syncAboutVersion,350); }, true);
+                      window.addEventListener('pageshow', syncAboutVersion);
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(versionSync, null)
