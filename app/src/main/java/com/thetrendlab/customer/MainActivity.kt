@@ -218,8 +218,8 @@ class MainActivity : Activity() {
                           var node;
                           while ((node = walker.nextNode())) {
                             var value = node.nodeValue || '';
-                            if (/Customer\s+app\s+v(?:1\.0|\d+(?:\.\d+){1,2})/i.test(value)) {
-                              node.nodeValue = value.replace(/Customer\s+app\s+v(?:1\.0|\d+(?:\.\d+){1,2})/ig, 'Customer app v' + version);
+                            if (/Customer\s+app\s+v(?:1\.0|\d+(?:\.\d+){0,2})/i.test(value)) {
+                              node.nodeValue = value.replace(/Customer\s+app\s+v(?:1\.0|\d+(?:\.\d+){0,2})/ig, 'Customer app v' + version);
                             }
                           }
                         } catch (e) {}
