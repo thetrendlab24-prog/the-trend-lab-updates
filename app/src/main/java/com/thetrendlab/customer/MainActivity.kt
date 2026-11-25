@@ -71,10 +71,10 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Keep the WebView inside the real Android system-bar safe area.
-        // Android 15 (targetSdk 35) enforces edge-to-edge by default; opting out
-        // prevents status/navigation bars from drawing over fixed web content.
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Handle system bars explicitly: some Android/WebView combinations still
+        // lay the WebView under the status bar despite decor fitting being enabled.
+        // Apply actual system-bar insets to the root container below.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.WHITE
         window.navigationBarColor = Color.WHITE
         if (Build.VERSION.SDK_INT >= 26) {
@@ -317,8 +317,27 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         root.addView(pageProgress, FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP))
+        // Keep WebView content below Android's status/notification area and
+        // above the gesture/navigation area on all Android versions.
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            val topInset: Int
+            val bottomInset: Int
+            if (Build.VERSION.SDK_INT >= 30) {
+                val bars = insets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                topInset = bars.top
+                bottomInset = bars.bottom
+            } else {
+                @Suppress("DEPRECATION")
+                run {
+                    topInset = insets.systemWindowInsetTop
+                    bottomInset = insets.systemWindowInsetBottom
+                }
+            }
+            view.setPadding(0, topInset, 0, bottomInset)
+            insets
+        }
         setContentView(root)
-        webView.requestApplyInsets()
+        root.requestApplyInsets()
         showBrandOpening(root)
         setupConnectivityMonitor(root)
 
