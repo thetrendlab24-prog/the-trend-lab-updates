@@ -97,8 +97,7 @@ class MainActivity : Activity() {
         // Decor fitting above keeps this WebView below the status bar and above
         // the navigation/gesture area. Do not add a second inset as WebView padding.
         webView.settings.apply {
-            javaScriptEnabled = true
-            allowFileAccess = false
+            javaScriptEnabled = true            allowFileAccess = false
             allowContentAccess = false
             if (Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = true
             domStorageEnabled = true
@@ -197,8 +196,7 @@ class MainActivity : Activity() {
                         'women’s clothing':'👚',
                         "women's clothing":'👚'
                       };
-                      function norm(t){return (t||'').normalize('NFKC').replace(/[’]/g,"'").replace(/[–—]/g,'-').replace(/\s+/g,' ').trim().toLowerCase();}
-                      function apply(){
+                      function norm(t){return (t||'').normalize('NFKC').replace(/[’]/g,"'").replace(/[–—]/g,'-').replace(/\s+/g,' ').trim().toLowerCase();}                      function apply(){
                         try{
                           document.querySelectorAll('.category-tile').forEach(function(tile){
                             var title=tile.querySelector('strong');
@@ -236,8 +234,6 @@ class MainActivity : Activity() {
 
                 val versionSync = """
                     (function() {
-                      if (window.__ttlVersionSyncInstalled) return;
-                      window.__ttlVersionSyncInstalled = true;
                       function syncAboutVersion() {
                         try {
                           var version = (window.Android && Android.getAppVersion) ? Android.getAppVersion() : '';
@@ -246,8 +242,9 @@ class MainActivity : Activity() {
                           var node;
                           while ((node = walker.nextNode())) {
                             var value = node.nodeValue || '';
-                            if (/Customer\s+app\s+v(?:1\.0|\d+(?:\.\d+){0,2})/i.test(value)) {
-                              var updated = value.replace(/Customer\\s+app\\s+v(?:1\\.0|\\d+(?:\\.\\d+){0,2})/ig, 'Customer app v' + version);\n                              if (updated !== value) node.nodeValue = updated;
+                            if (/Customer\s+app\s+v[\w.-]+/i.test(value)) {
+                              var updated = value.replace(/Customer\s+app\s+v[\w.-]+/ig, 'Customer app v' + version);
+                              if (updated !== value) node.nodeValue = updated;
                             }
                           }
                         } catch (e) {}
@@ -297,8 +294,7 @@ class MainActivity : Activity() {
                       }
                       document.addEventListener('touchstart',onStart,{passive:true,capture:true});
                       document.addEventListener('touchend',onEnd,{passive:false,capture:true});
-                      document.addEventListener('click',function(e){
-                        if(Date.now()<ignoreClickUntil&&heroFrom(e.target)){e.preventDefault();e.stopImmediatePropagation();}
+                      document.addEventListener('click',function(e){                        if(Date.now()<ignoreClickUntil&&heroFrom(e.target)){e.preventDefault();e.stopImmediatePropagation();}
                       },true);
                       function apply(){
                         document.querySelectorAll('.shop-hero').forEach(function(h){
@@ -397,8 +393,7 @@ class MainActivity : Activity() {
                 "intent" -> Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                 else -> return true
             }
-            // Do not gate launches on resolveActivity(): package visibility can hide valid handlers.
-            startActivity(intent)
+            // Do not gate launches on resolveActivity(): package visibility can hide valid handlers.            startActivity(intent)
             true
         } catch (_: android.content.ActivityNotFoundException) {
             Toast.makeText(this, "No compatible app is installed to open this link.", Toast.LENGTH_SHORT).show()
@@ -497,8 +492,7 @@ class MainActivity : Activity() {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { refreshConnectivity(root) }
             override fun onLost(network: Network) { refreshConnectivity(root) }
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { refreshConnectivity(root) }
-        }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { refreshConnectivity(root) }        }
         networkCallback = callback
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -597,8 +591,7 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun checkForUpdate() {
-            checkForMandatoryUpdate(true)
-        }
+            checkForMandatoryUpdate(true)        }
     }
 
     private fun checkForMandatoryUpdate(showLatestMessage: Boolean) {
@@ -697,8 +690,7 @@ class MainActivity : Activity() {
                 val code = connection.responseCode
                 if (code !in 200..299) throw IllegalStateException("Update server HTTP $code")
                 val total = connection.contentLengthLong
-                connection.inputStream.use { input ->
-                    FileOutputStream(temp).use { output ->
+                connection.inputStream.use { input ->                    FileOutputStream(temp).use { output ->
                         val buffer = ByteArray(16384)
                         var count: Long = 0
                         while (true) {
@@ -797,8 +789,7 @@ class MainActivity : Activity() {
                 return
             }
             downloadedApkFile = file
-            showInstallReadyDialog()
-        } catch (_: Exception) {
+            showInstallReadyDialog()        } catch (_: Exception) {
             clearPendingUpdateDownload(true)
         }
     }
@@ -897,7 +888,6 @@ class MainActivity : Activity() {
             pendingExpectedSha256 = null
         }
     }
-
     override fun onPause() {
         refreshOnNextResume = true
         super.onPause()
