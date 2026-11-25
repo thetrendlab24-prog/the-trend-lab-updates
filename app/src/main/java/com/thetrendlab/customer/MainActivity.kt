@@ -333,7 +333,8 @@ class MainActivity : Activity() {
                     bottomInset = insets.systemWindowInsetBottom
                 }
             }
-            view.setPadding(0, topInset, 0, bottomInset)
+            // Extra 40dp clearance keeps the WebView header below Android status-bar overlays/notification chips.
+            view.setPadding(0, topInset + dp(40), 0, bottomInset)
             insets
         }
         setContentView(root)
