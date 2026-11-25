@@ -97,7 +97,8 @@ class MainActivity : Activity() {
         // Decor fitting above keeps this WebView below the status bar and above
         // the navigation/gesture area. Do not add a second inset as WebView padding.
         webView.settings.apply {
-            javaScriptEnabled = true            allowFileAccess = false
+            javaScriptEnabled = true
+            allowFileAccess = false
             allowContentAccess = false
             if (Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = true
             domStorageEnabled = true
