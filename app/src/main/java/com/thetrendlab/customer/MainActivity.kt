@@ -142,6 +142,34 @@ class MainActivity : Activity() {
                 """.trimIndent()
                 view?.evaluateJavascript(apkHeaderCleanup, null)
 
+                // APK-only safe top spacing for secondary screens whose page title
+                // is rendered behind Android's status bar. Keep home page unchanged.
+                val secondaryScreenTopSafe = """
+                    (function(){
+                      var id='ttl-apk-secondary-top-safe';
+                      var style=document.getElementById(id);
+                      if(!style){
+                        style=document.createElement('style');style.id=id;
+                        style.textContent='html.ttl-apk-secondary-top-safe body{padding-top:28px!important;box-sizing:border-box!important}';
+                        document.head.appendChild(style);
+                      }
+                      function apply(){
+                        try{
+                          var headings=Array.from(document.querySelectorAll('h1,h2,[role="heading"],.page-title,.screen-title'));
+                          var names=headings.map(function(el){return (el.innerText||el.textContent||'').trim().toLowerCase();});
+                          var secondary=names.some(function(t){return /^(your bag|cart|wishlist|your wishlist|welcome back)$/.test(t);});
+                          document.documentElement.classList.toggle('ttl-apk-secondary-top-safe',secondary);
+                        }catch(e){}
+                      }
+                      apply();
+                      if(!window.__ttlSecondaryTopObserver){
+                        window.__ttlSecondaryTopObserver=new MutationObserver(apply);
+                        window.__ttlSecondaryTopObserver.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+                      }
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(secondaryScreenTopSafe, null)
+
                 // APK-only robust category shelf fix. Detects category blocks by their visible
                 // "SHOP COLLECTION" label instead of assuming a website-specific element ID.
                 // Re-runs after dynamic rendering because product shelves are inserted asynchronously.
